@@ -2,7 +2,7 @@
 An immutable cloud deployer for Amazon.
 
 #### What's in the name?
-Chadash (khaw-dawsh') comes from the Hebrew word: **חָדָש**
+Chadash (khaw-dawsh') comes from the Hebrew word: **חָדָשׁ‎**
 
 In the Strongs Greek and Hebrew dictionary, the definition for this word (Strongs #H2319) is:
 > fresh, new thing
