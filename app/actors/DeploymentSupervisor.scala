@@ -6,25 +6,19 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
   import actors.DeploymentSupervisor._
 
-  var deployments = Map.empty[String, DeployWorkflow]
-
   override def receive: Receive = {
     case deploy: Deploy => {
-      deployments.contains(deploy.appName) match {
-        case true => {
-          sender() ! AllreadyStarted
-        }
-        case false => {
-          val actr = ChadashSystem.system.actorOf(Props[WorkflowSupervisor], s"workflow-${deploy.appName}")
-
-          actr ! deploy
-          deployments += deploy.appName -> DeployWorkflow(actr)
-          sender() ! Started
-        }
+      val actorName = s"workflow-${deploy.appName}"
+      context.child(actorName) match {
+        case Some(x) => x forward deploy
+        case None => context.actorOf(Props[WorkflowSupervisor], actorName) forward deploy
       }
     }
     case status: DeployStatusQuery => {
       sender() ! "Gotta do some digging..."
+    }
+    case DeployFailed => {
+      log.error("Deployment failed for this workflow:" + sender().toString())
     }
   }
 }
@@ -39,7 +33,10 @@ object DeploymentSupervisor {
 
   case object Started
 
-  case object AllreadyStarted
+  case object WorkflowInProgress
+
+  case object DeployFailed
+
 }
 
 
