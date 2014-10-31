@@ -112,7 +112,7 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
       context.child(Constants.statusActorName).get ! ItemFinished("Launch Config: Completed")
       stopChild(sender())
 
-      val elb = context.actorOf(Props[ElasticLoadBalancer], "createELB")
+      val elb = context.actorOf(ElasticLoadBalancer.props(credentials), "createELB")
       context.watch(elb)
       elb ! CreateELB(deployment.appName)
       context.child(Constants.statusActorName).get ! LogMessage("ELB: Create")
