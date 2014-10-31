@@ -2,7 +2,8 @@ package controllers
 
 import actors.DeploymentSupervisor.NoWorkflow
 import actors.WorkflowStatus.SubscribeToMe
-import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus, WorkflowStatusWebSocket}
+import actors.workflow.aws.WorkflowStatusWebSocket
+import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.lifeway.chadash.appversion.BuildInfo

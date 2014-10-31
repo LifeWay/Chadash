@@ -1,8 +1,14 @@
 package actors
 
-import actors.WorkflowStatusWebSocket.MessageToClient
+import actors.workflow.aws.WorkflowStatusWebSocket.MessageToClient
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
+/**
+ * This actor is intended to be created by your workflow supervisor. Your supervisor will manage this as one of its
+ * children, and send any log data to it based on the actions you take inside of your supervisor.
+ *
+ * @param totalSteps
+ */
 class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
   import actors.WorkflowStatus._

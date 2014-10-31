@@ -1,6 +1,5 @@
-package actors.workflow
+package actors.workflow.aws.steps.asg
 
-import actors.workflow.WarmUp.{CheckWarmUp, WaitForWarmUp, WarmUpCompleted}
 import akka.actor.{Actor, ActorLogging}
 
 import scala.concurrent.duration._
@@ -8,6 +7,7 @@ import scala.concurrent.duration._
 class WarmUp extends Actor with ActorLogging {
 
   import context._
+  import WarmUp._
 
   var temporaryTestCounter = 0
 

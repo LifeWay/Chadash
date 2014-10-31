@@ -1,15 +1,14 @@
-package actors.workflow
+package actors.workflow.aws.steps.elb
 
-import actors.workflow.ElasticLoadBalancer.{CreateELB, ELBCreated}
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
-import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
-import com.amazonaws.services.elasticloadbalancing.model._
 
 import scala.concurrent.duration._
 
 class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorLogging {
+
+  import ElasticLoadBalancer._
+
   override def receive: Receive = {
     case x: CreateELB => {
 

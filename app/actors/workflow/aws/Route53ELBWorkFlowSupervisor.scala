@@ -1,16 +1,21 @@
-package actors
+package actors.workflow.aws
 
 import javax.naming.LimitExceededException
 
 import actors.AmazonCredentials.{CurrentCredentials, NoCredentials}
 import actors.DeploymentSupervisor.{Deploy, Started, WorkflowInProgress}
 import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus, ItemFinished, LogMessage}
-import actors.workflow.AutoScalingGroup.{ASGCreated, CreateASG}
-import actors.workflow.ElasticLoadBalancer.{CreateELB, ELBCreated}
-import actors.workflow.LaunchConfiguration.{CreateLaunchConfig, LaunchConfigCreated}
-import actors.workflow.Route53Switch.{RequestRoute53Switch, Route53SwitchCompleted}
-import actors.workflow.WarmUp.{WaitForWarmUp, WarmUpCompleted}
-import actors.workflow._
+import actors.workflow.aws.Route53ELBWorkFlowSupervisor.StartWorkflow
+import actors.workflow.aws.steps.asg.AutoScalingGroup.{ASGCreated, CreateASG}
+import actors.workflow.aws.steps.asg.WarmUp.{WaitForWarmUp, WarmUpCompleted}
+import actors.workflow.aws.steps.asg.{AutoScalingGroup, WarmUp}
+import actors.workflow.aws.steps.elb.ElasticLoadBalancer
+import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated}
+import actors.workflow.aws.steps.launchconfig.LaunchConfiguration
+import actors.workflow.aws.steps.launchconfig.LaunchConfiguration.{CreateLaunchConfig, LaunchConfigCreated}
+import actors.workflow.aws.steps.route53.Route53Switch
+import actors.workflow.aws.steps.route53.Route53Switch.{RequestRoute53Switch, Route53SwitchCompleted}
+import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor.SupervisorStrategy._
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
@@ -30,7 +35,6 @@ import scala.concurrent.duration._
  */
 class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
 
-  import actors.Route53ELBWorkFlowSupervisor._
   import context._
 
   var deployment: Deploy = null

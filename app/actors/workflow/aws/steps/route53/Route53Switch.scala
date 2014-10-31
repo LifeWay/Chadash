@@ -1,15 +1,17 @@
-package actors.workflow
+package actors.workflow.aws.steps.route53
 
-import actors.workflow.AutoScalingGroup.{ASGCreated, CreateASG}
 import akka.actor.{Actor, ActorLogging}
 
 import scala.concurrent.duration._
 
-class AutoScalingGroup extends Actor with ActorLogging {
+class Route53Switch extends Actor with ActorLogging {
+
+  import Route53Switch._
+
   override def receive: Receive = {
-    case x: CreateASG => {
-      log.debug("Attempting to create autoscaling group....")
-      context.parent ! ASGCreated(x.appVersion)
+    case x: RequestRoute53Switch => {
+      log.debug("Attempting to create ELB....")
+      context.parent ! Route53SwitchCompleted(x.appVersion)
     }
   }
 
@@ -22,16 +24,16 @@ class AutoScalingGroup extends Actor with ActorLogging {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     message.get match {
-      case x: CreateASG => context.system.scheduler.scheduleOnce(10.seconds, self, x)
+      case x: RequestRoute53Switch => context.system.scheduler.scheduleOnce(10.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }
 }
 
-object AutoScalingGroup {
+object Route53Switch {
 
-  case class CreateASG(appVersion: String)
+  case class RequestRoute53Switch(appVersion: String)
 
-  case class ASGCreated(appVersion: String)
+  case class Route53SwitchCompleted(appVersion: String)
 
 }

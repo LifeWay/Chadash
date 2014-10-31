@@ -1,6 +1,5 @@
-package actors.workflow
+package actors.workflow.aws.steps.launchconfig
 
-import actors.workflow.LaunchConfiguration.{CreateLaunchConfig, LaunchConfigCreated}
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
@@ -11,6 +10,9 @@ import com.google.common.io.BaseEncoding
 import scala.concurrent.duration._
 
 class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorLogging {
+
+  import LaunchConfiguration._
+
   override def receive: Receive = {
     case x: CreateLaunchConfig => {
       val instanceMonitoring = new InstanceMonitoring()

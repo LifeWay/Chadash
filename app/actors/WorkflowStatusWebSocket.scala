@@ -1,11 +1,11 @@
-package actors
+package actors.workflow.aws
 
 import actors.WorkflowStatus.DeployStatusSubscribeConfirm
 import akka.actor._
 
 class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends Actor with ActorLogging {
 
-  import actors.WorkflowStatusWebSocket._
+  import WorkflowStatusWebSocket._
 
   workflowStatus ! DeployStatusSubscribeConfirm
   context.watch(workflowStatus)
