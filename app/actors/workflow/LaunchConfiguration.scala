@@ -13,8 +13,6 @@ import scala.concurrent.duration._
 class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorLogging {
   override def receive: Receive = {
     case x: CreateLaunchConfig => {
-      log.debug("Attempting to create launch config....")
-
       val instanceMonitoring = new InstanceMonitoring()
         .withEnabled(x.detailedMonitoring)
 

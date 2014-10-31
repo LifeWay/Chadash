@@ -1,5 +1,6 @@
 package actors
 
+import actors.WorkflowStatus.GetStatus
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 
@@ -17,14 +18,18 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       context.child(actorName) match {
         case Some(x) => x forward deploy
         case None => {
-          val workflowActor = context.actorOf(Props[WorkflowSupervisor], actorName)
+          val workflowActor = context.actorOf(Props[Route53ELBWorkFlowSupervisor], actorName)
           context.watch(workflowActor)
           workflowActor forward deploy
         }
       }
     }
     case status: DeployStatusQuery => {
-      sender() ! "Gotta do some digging..."
+      val actorName = s"workflow-${status.appName}"
+      context.child(actorName) match {
+        case Some(x) => x ! GetStatus
+        case None => sender() ! NoWorkflow
+      }
     }
     case DeployFailed => {
       log.error("Deployment failed for this workflow:" + sender().toString())
@@ -50,6 +55,8 @@ object DeploymentSupervisor {
   case object WorkflowInProgress
 
   case object DeployFailed
+
+  case object NoWorkflow
 
 }
 

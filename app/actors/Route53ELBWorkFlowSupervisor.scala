@@ -4,6 +4,7 @@ import javax.naming.LimitExceededException
 
 import actors.AmazonCredentials.{CurrentCredentials, NoCredentials}
 import actors.DeploymentSupervisor.{Deploy, Started, WorkflowInProgress}
+import actors.WorkflowStatus.{GetStatus, ItemFinished, LogMessage}
 import actors.workflow.AutoScalingGroup.{ASGCreated, CreateASG}
 import actors.workflow.ElasticLoadBalancer.{CreateELB, ELBCreated}
 import actors.workflow.LaunchConfiguration.{CreateLaunchConfig, LaunchConfigCreated}
@@ -16,6 +17,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.model.AlreadyExistsException
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import com.typesafe.config.{Config, ConfigFactory}
+import utils.Constants
 
 import scala.collection.JavaConversions._
 import scala.concurrent.duration._
@@ -26,9 +28,9 @@ import scala.concurrent.duration._
  * the capability to decide what to do when those things error.
  *
  */
-class WorkflowSupervisor extends Actor with ActorLogging {
+class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
 
-  import actors.WorkflowSupervisor._
+  import actors.Route53ELBWorkFlowSupervisor._
   import context._
 
   var deployment: Deploy = null
@@ -46,7 +48,9 @@ class WorkflowSupervisor extends Actor with ActorLogging {
   override def receive: Receive = {
     case deploy: Deploy => {
       deployment = deploy
-      log.debug("Starting deployment workflow...")
+      val workflowStatus = context.actorOf(WorkflowStatus.props(5), Constants.statusActorName)
+      context.watch(workflowStatus)
+      workflowStatus ! LogMessage("Starting deployment workflow...")
       sender ! Started
       self ! StartWorkflow
       become(inProcess)
@@ -69,6 +73,7 @@ class WorkflowSupervisor extends Actor with ActorLogging {
 
       val launchConfigActor = context.actorOf(LaunchConfiguration.props(credentials), "launchConfig")
       context.watch(launchConfigActor)
+      context.child(Constants.statusActorName).get ! LogMessage("Launch Config: Create")
 
       launchConfigActor ! CreateLaunchConfig(
         labelName = s"${deployment.appName}-v${deployment.appVersion}",
@@ -83,43 +88,49 @@ class WorkflowSupervisor extends Actor with ActorLogging {
       )
     }
     case LaunchConfigCreated => {
-      log.debug("Launch configuration created...")
+      context.child(Constants.statusActorName).get ! ItemFinished("Launch Config: Completed")
       stopChild(sender())
 
       val elb = context.actorOf(Props[ElasticLoadBalancer], "createELB")
       context.watch(elb)
       elb ! CreateELB(deployment.appName)
+      context.child(Constants.statusActorName).get ! LogMessage("ELB: Create")
     }
     case x: ELBCreated => {
-      log.debug("ELB created...")
+      context.child(Constants.statusActorName).get ! ItemFinished("ELB: Completed")
+      log.debug("")
       stopChild(sender())
 
       val asg = context.actorOf(Props[AutoScalingGroup], "createASG")
       context.watch(asg)
       asg ! CreateASG(deployment.appName)
+      context.child(Constants.statusActorName).get ! LogMessage("ASG: Create")
     }
     case x: ASGCreated => {
-      log.debug("ASG created...")
+      context.child(Constants.statusActorName).get ! ItemFinished("ASG: Completed")
       stopChild(sender())
 
       val warmup = context.actorOf(Props[WarmUp], "warmup")
       context.watch(warmup)
       warmup ! WaitForWarmUp(deployment.appName)
+      context.child(Constants.statusActorName).get ! LogMessage("WarnUp: Start Task")
     }
     case x: WarmUpCompleted => {
-      log.debug("ELB warmup completed...")
+      context.child(Constants.statusActorName).get ! ItemFinished("WarnUp: Completed")
       stopChild(sender())
 
       val route53switch = context.actorOf(Props[Route53Switch], "route53switch")
       context.watch(route53switch)
       route53switch ! RequestRoute53Switch(deployment.appName)
+      context.child(Constants.statusActorName).get ! LogMessage("Route53: Start Task")
     }
     case x: Route53SwitchCompleted => {
-      log.debug("Route 53 switch has completed. We are finished!")
+      context.child(Constants.statusActorName).get ! ItemFinished("Route53: Completed")
       stopChild(sender())
 
       become(receive)
     }
+    case GetStatus => context.child(Constants.statusActorName).get forward GetStatus
     // EXCEPTIONAL CASES:
     case NoCredentials => {
       context.unwatch(sender())
@@ -139,7 +150,7 @@ class WorkflowSupervisor extends Actor with ActorLogging {
   }
 }
 
-object WorkflowSupervisor {
+object Route53ELBWorkFlowSupervisor {
 
   case object StartWorkflow
 
