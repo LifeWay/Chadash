@@ -23,7 +23,7 @@ class Route53Switch extends Actor with ActorLogging {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     message.get match {
-      case x: RequestRoute53Switch => context.system.scheduler.scheduleOnce(10 seconds, self, x)
+      case x: RequestRoute53Switch => context.system.scheduler.scheduleOnce(10.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }

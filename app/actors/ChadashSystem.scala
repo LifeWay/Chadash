@@ -8,5 +8,7 @@ object ChadashSystem {
 
   implicit val system = ActorSystem("ChadashSystem", config)
 
+  val credentials = system.actorOf(Props[AmazonCredentials], "awsCredentials")
+  credentials ! AmazonCredentials.Initialize
   val deploymentSupervisor = system.actorOf(Props[DeploymentSupervisor], "deploymentSupervisor")
 }

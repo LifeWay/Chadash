@@ -32,7 +32,7 @@ class WarmUp extends Actor with ActorLogging {
       //TODO: start ticking, checking every 15 seconds to see if instances are all healthy in the ELB.
       if (temporaryTestCounter < 2) {
         temporaryTestCounter = temporaryTestCounter + 1
-        system.scheduler.scheduleOnce(15 seconds, self, CheckWarmUp)
+        system.scheduler.scheduleOnce(15.seconds, self, CheckWarmUp)
       } else {
         log.debug("we have completed... notify upstream")
         parent ! WarmUpCompleted(appVersion)
@@ -49,7 +49,7 @@ class WarmUp extends Actor with ActorLogging {
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
 
     message.get match {
-      case x: WaitForWarmUp => context.system.scheduler.scheduleOnce(10 seconds, self, x)
+      case x: WaitForWarmUp => context.system.scheduler.scheduleOnce(10.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }

@@ -1,5 +1,8 @@
 package actors
 
+import javax.naming.LimitExceededException
+
+import actors.AmazonCredentials.{CurrentCredentials, NoCredentials}
 import actors.DeploymentSupervisor.{Deploy, Started, WorkflowInProgress}
 import actors.workflow.AutoScalingGroup.{ASGCreated, CreateASG}
 import actors.workflow.ElasticLoadBalancer.{CreateELB, ELBCreated}
@@ -9,7 +12,12 @@ import actors.workflow.WarmUp.{WaitForWarmUp, WarmUpCompleted}
 import actors.workflow._
 import akka.actor.SupervisorStrategy._
 import akka.actor._
+import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.services.autoscaling.model.AlreadyExistsException
+import com.amazonaws.{AmazonClientException, AmazonServiceException}
+import com.typesafe.config.{Config, ConfigFactory}
 
+import scala.collection.JavaConversions._
 import scala.concurrent.duration._
 
 /**
@@ -24,7 +32,16 @@ class WorkflowSupervisor extends Actor with ActorLogging {
   import context._
 
   var deployment: Deploy = null
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 5, withinTimeRange = 5 minutes)(defaultDecider)
+  var credentials: AWSCredentials = null
+  var appConfig: Config = null
+
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 5.minutes) {
+    case _: LimitExceededException => Stop
+    case _: AlreadyExistsException => Stop
+    case _: AmazonServiceException => Restart
+    case _: AmazonClientException => Restart
+    case _: Exception => Stop
+  }
 
   override def receive: Receive = {
     case deploy: Deploy => {
@@ -41,11 +58,31 @@ class WorkflowSupervisor extends Actor with ActorLogging {
       sender ! WorkflowInProgress
     }
     case StartWorkflow => {
-      val launchConfig = context.actorOf(Props[LaunchConfiguration], "launchConfig")
-      context.watch(launchConfig)
-      launchConfig ! CreateLaunchConfig(deployment.appName)
+      appConfig = ConfigFactory.load().getConfig(s"deployment-configs.${deployment.appName}")
+
+      context.watch(ChadashSystem.credentials)
+      ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
     }
-    case x: LaunchConfigCreated => {
+    case x: CurrentCredentials => {
+      context.unwatch(sender())
+      credentials = x.credentials
+
+      val launchConfigActor = context.actorOf(LaunchConfiguration.props(credentials), "launchConfig")
+      context.watch(launchConfigActor)
+
+      launchConfigActor ! CreateLaunchConfig(
+        labelName = s"${deployment.appName}-v${deployment.appVersion}",
+        detailedMonitoring = appConfig.getBoolean("detailedMonitoring"),
+        publicIpAddress = appConfig.getBoolean("publicIpAddress"),
+        amiImageId = deployment.amiName,
+        instanceType = appConfig.getString("instanceType"),
+        keyName = appConfig.getString("keyName"),
+        securityGroups = appConfig.getStringList("securityGroups").toList.toSeq,
+        userData = deployment.userData
+        //TODO: a few more optional params to pull from conf...
+      )
+    }
+    case LaunchConfigCreated => {
       log.debug("Launch configuration created...")
       stopChild(sender())
 
@@ -83,8 +120,14 @@ class WorkflowSupervisor extends Actor with ActorLogging {
 
       become(receive)
     }
+    // EXCEPTIONAL CASES:
+    case NoCredentials => {
+      context.unwatch(sender())
+      log.error("Unable to get AWS Credentials")
+      context.parent ! DeploymentSupervisor.DeployFailed
+    }
     case Terminated(actorRef) => {
-      log.debug(s"One of our children has died...the deployment has failed and needs a human ${actorRef.toString}")
+      log.debug(s"One of our children has died...the deployment has failed and needs a human. Details:  ${actorRef.toString}")
       context.parent ! DeploymentSupervisor.DeployFailed
     }
     case m: Any => log.debug(s"unknown message type received. ${m.toString}")

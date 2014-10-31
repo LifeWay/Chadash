@@ -22,7 +22,7 @@ class ElasticLoadBalancer extends Actor with ActorLogging {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     message.get match {
-      case x: CreateELB => context.system.scheduler.scheduleOnce(10 seconds, self, x)
+      case x: CreateELB => context.system.scheduler.scheduleOnce(10.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }
