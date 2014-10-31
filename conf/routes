@@ -2,9 +2,9 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET         /                                  controllers.Application.index
-POST        /api/deploy/:appName               controllers.Application.deploy(appName:String)
-GET         /api/deploy/status/:appName        controllers.Application.status(appName:String)
+GET         /                                         controllers.Application.index
+POST        /api/deploy/:appName                      controllers.Application.deploy(appName:String)
+GET         /api/deploy/status/:appName               controllers.Application.status(appName:String)
+GET         /api/deploy/status-events/:appName        controllers.Application.statusSocket(appName:String)
 
-
-GET         /system-info/version               controllers.Application.buildInfo
+GET         /system-info/version                      controllers.Application.buildInfo

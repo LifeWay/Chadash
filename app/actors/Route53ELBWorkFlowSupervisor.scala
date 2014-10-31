@@ -4,7 +4,7 @@ import javax.naming.LimitExceededException
 
 import actors.AmazonCredentials.{CurrentCredentials, NoCredentials}
 import actors.DeploymentSupervisor.{Deploy, Started, WorkflowInProgress}
-import actors.WorkflowStatus.{GetStatus, ItemFinished, LogMessage}
+import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus, ItemFinished, LogMessage}
 import actors.workflow.AutoScalingGroup.{ASGCreated, CreateASG}
 import actors.workflow.ElasticLoadBalancer.{CreateELB, ELBCreated}
 import actors.workflow.LaunchConfiguration.{CreateLaunchConfig, LaunchConfigCreated}
@@ -37,12 +37,24 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
   var credentials: AWSCredentials = null
   var appConfig: Config = null
 
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 5.minutes) {
-    case _: LimitExceededException => Stop
-    case _: AlreadyExistsException => Stop
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 5.minutes, loggingEnabled = false) {
+    case ex: LimitExceededException => {
+      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
+      log.error(ex, "Limit has been exceeded")
+      Stop
+    }
+    case ex: AlreadyExistsException => {
+      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
+      log.error(ex, "Already exists")
+      Stop
+    }
     case _: AmazonServiceException => Restart
     case _: AmazonClientException => Restart
-    case _: Exception => Stop
+    case ex: Exception => {
+      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
+      log.error(ex, "Catch-all Exception Handler.")
+      Stop
+    }
   }
 
   override def receive: Receive = {
@@ -61,12 +73,17 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
     case deploy: Deploy => {
       sender ! WorkflowInProgress
     }
+
     case StartWorkflow => {
       appConfig = ConfigFactory.load().getConfig(s"deployment-configs.${deployment.appName}")
 
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
     }
+
+    /**
+     * Receives the current AWS credentials, requests a launch config to be created
+     */
     case x: CurrentCredentials => {
       context.unwatch(sender())
       credentials = x.credentials
@@ -87,6 +104,10 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
         //TODO: a few more optional params to pull from conf...
       )
     }
+
+    /**
+     * Receives a successful launch configuration, requests an ELB to be created
+     */
     case LaunchConfigCreated => {
       context.child(Constants.statusActorName).get ! ItemFinished("Launch Config: Completed")
       stopChild(sender())
@@ -96,6 +117,7 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
       elb ! CreateELB(deployment.appName)
       context.child(Constants.statusActorName).get ! LogMessage("ELB: Create")
     }
+
     case x: ELBCreated => {
       context.child(Constants.statusActorName).get ! ItemFinished("ELB: Completed")
       log.debug("")
@@ -106,6 +128,7 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
       asg ! CreateASG(deployment.appName)
       context.child(Constants.statusActorName).get ! LogMessage("ASG: Create")
     }
+
     case x: ASGCreated => {
       context.child(Constants.statusActorName).get ! ItemFinished("ASG: Completed")
       stopChild(sender())
@@ -115,6 +138,7 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
       warmup ! WaitForWarmUp(deployment.appName)
       context.child(Constants.statusActorName).get ! LogMessage("WarnUp: Start Task")
     }
+
     case x: WarmUpCompleted => {
       context.child(Constants.statusActorName).get ! ItemFinished("WarnUp: Completed")
       stopChild(sender())
@@ -124,21 +148,30 @@ class Route53ELBWorkFlowSupervisor extends Actor with ActorLogging {
       route53switch ! RequestRoute53Switch(deployment.appName)
       context.child(Constants.statusActorName).get ! LogMessage("Route53: Start Task")
     }
+
     case x: Route53SwitchCompleted => {
       context.child(Constants.statusActorName).get ! ItemFinished("Route53: Completed")
       stopChild(sender())
 
-      become(receive)
+      context.unwatch(context.child(Constants.statusActorName).get)
+      context.stop(context.child(Constants.statusActorName).get)
+      unbecome()
     }
+
+    case x: DeployStatusSubscribeRequest => context.child(Constants.statusActorName).get forward x
     case GetStatus => context.child(Constants.statusActorName).get forward GetStatus
+
     // EXCEPTIONAL CASES:
     case NoCredentials => {
       context.unwatch(sender())
-      log.error("Unable to get AWS Credentials")
+      context.child(Constants.statusActorName).get ! LogMessage("Unable to get AWS Credentials")
       context.parent ! DeploymentSupervisor.DeployFailed
     }
     case Terminated(actorRef) => {
-      log.debug(s"One of our children has died...the deployment has failed and needs a human. Details:  ${actorRef.toString}")
+      context.child(Constants.statusActorName) match {
+        case Some(x) => x ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+        case None => log.error("Our logger actor has died... Help!")
+      }
       context.parent ! DeploymentSupervisor.DeployFailed
     }
     case m: Any => log.debug(s"unknown message type received. ${m.toString}")

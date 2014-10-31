@@ -1,16 +1,19 @@
 package controllers
 
-import actors.{ChadashSystem, DeploymentSupervisor}
+import actors.DeploymentSupervisor.NoWorkflow
+import actors.WorkflowStatus.SubscribeToMe
+import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus, WorkflowStatusWebSocket}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.lifeway.chadash.appversion.BuildInfo
 import models.Deployment
+import play.api.Play.current
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
 import play.api.libs.json.{JsError, _}
 import play.api.mvc._
 
 import scala.concurrent.Future
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 
 object Application extends Controller {
 
@@ -28,7 +31,7 @@ object Application extends Controller {
       deployment => {
         // TODO: check for authentication
 
-        implicit val to = Timeout(Duration(10, "seconds"))
+        implicit val to = Timeout(Duration(2, "seconds"))
         val f = for (
           res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(appName, deployment.version, deployment.amiId, deployment.userData)
         ) yield res
@@ -36,6 +39,20 @@ object Application extends Controller {
         f.map(x => Ok(s"$x"))
       }
     )
+  }
+
+  def statusSocket(appName: String) = {
+    WebSocket.tryAcceptWithActor[String, String] { request =>
+      implicit val to = Timeout(Duration(2, "seconds"))
+      val f = for (
+        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(appName)
+      ) yield res
+
+      f.map {
+        case NoWorkflow => Left(NotFound("workflow not found"))
+        case x: SubscribeToMe => Right(out => WorkflowStatusWebSocket.props(out, x.ref))
+      }
+    }
   }
 
   def status(appName: String) = Action {

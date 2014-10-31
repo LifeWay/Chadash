@@ -1,6 +1,6 @@
 package actors
 
-import actors.WorkflowStatus.GetStatus
+import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus}
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 
@@ -28,6 +28,13 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       val actorName = s"workflow-${status.appName}"
       context.child(actorName) match {
         case Some(x) => x ! GetStatus
+        case None => sender() ! NoWorkflow
+      }
+    }
+    case subscribe: DeployStatusSubscribeRequest => {
+      val actorName = s"workflow-${subscribe.appName}"
+      context.child(actorName) match {
+        case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
       }
     }

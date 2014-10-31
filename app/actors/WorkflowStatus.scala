@@ -1,6 +1,7 @@
 package actors
 
-import akka.actor.{Actor, ActorLogging, Props}
+import actors.WorkflowStatusWebSocket.MessageToClient
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
 class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
@@ -8,18 +9,31 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
   var stepsCompleted: Int = 0
   var logs = Seq.empty[String]
+  var subscribers = Seq.empty[ActorRef]
 
   override def receive: Receive = {
-    case x: LogMessage => {
-      log.debug(x.msg)
-    }
+    case x: LogMessage => logger(x.msg)
     case x: ItemFinished => {
-      log.debug(x.msg)
+      logger(x.msg)
       stepsCompleted = stepsCompleted + 1
     }
     case GetStatus => {
       sender() ! Status(stepsCompleted / totalSteps, logs)
     }
+    case x: DeployStatusSubscribeRequest => {
+      sender() ! SubscribeToMe(self)
+    }
+    case DeployStatusSubscribeConfirm => {
+      subscribers = subscribers :+ sender()
+      //Catch the subscriber up to current state
+      logs.map(x => sender() ! MessageToClient(x))
+    }
+  }
+
+  def logger(msg: String): Unit = {
+    logs = logs :+ msg
+    log.debug(msg)
+    subscribers.map(_ ! MessageToClient(msg))
   }
 }
 
@@ -32,6 +46,12 @@ object WorkflowStatus {
   case object GetStatus
 
   case class Status(percentComplete: Float, logMessages: Seq[String])
+
+  case class SubscribeToMe(ref: ActorRef)
+
+  case class DeployStatusSubscribeRequest(appName: String)
+
+  case object DeployStatusSubscribeConfirm
 
   def props(totalSteps: Int): Props = Props(new WorkflowStatus(totalSteps))
 }

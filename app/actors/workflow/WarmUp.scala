@@ -36,7 +36,7 @@ class WarmUp extends Actor with ActorLogging {
       } else {
         log.debug("we have completed... notify upstream")
         parent ! WarmUpCompleted(appVersion)
-        become(receive)
+        unbecome()
       }
     }
   }
