@@ -40,6 +40,7 @@ class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorL
         case None => ()
       }
       x.userData match {
+        //TODO: pick a different base64 encoding util thanks to guavas warning when compiling with scala
         case Some(y) => launchConfig.setUserData(BaseEncoding.base64().encode(y.getBytes(Charsets.UTF_8)))
         case None => ()
       }
