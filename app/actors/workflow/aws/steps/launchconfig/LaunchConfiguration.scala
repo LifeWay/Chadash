@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 
 class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorLogging {
 
-  import LaunchConfiguration._
+  import actors.workflow.aws.steps.launchconfig.LaunchConfiguration._
 
   override def receive: Receive = {
     case x: CreateLaunchConfig => {

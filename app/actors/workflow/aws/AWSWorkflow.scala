@@ -1,8 +1,10 @@
 package actors.workflow.aws
 
+import actors.workflow.aws.steps.elb.ELBSupervisor
+import actors.workflow.aws.steps.launchconfig.LaunchConfigSupervisor
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import com.typesafe.config.Config
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsNull, JsValue}
 
 import scala.collection.JavaConversions._
 
@@ -20,26 +22,43 @@ import scala.collection.JavaConversions._
 class AWSWorkflow extends Actor with ActorLogging {
 
   import actors.workflow.aws.AWSWorkflow._
+  import context._
 
+  var currentStep = 0
   var steps = Seq.empty[ActorRef]
   var stepResultData = Map.empty[String, JsValue]
 
   override def receive: Receive = {
 
     case x: Deploy => {
-
       val stepOrder: Seq[String] = x.appConfig.getStringList("stepOrder").to[Seq]
+      stepOrder.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i))
+      sender() ! StartingWorkflow
+      become(workflowProcessing)
 
-      //TODO: fold over the steps, creating the supervisor actors for each step.
+      self ! Start
+    }
+  }
 
-      //TODO: tell the sender we are starting.
+  def workflowProcessing: Receive = {
+    case Deploy => sender() ! DeployInProgress
+    case Start => {
+      steps(currentStep) ! StartStep(stepResultData, JsNull)
+    }
+    case StepCompleted => {
+      currentStep = currentStep + 1
 
-      //TODO: become a workflow in progress
+      steps.size == currentStep match {
+        case true => parent ! DeployCompleted
+        case false => steps(currentStep) ! StartStep(stepResultData, JsNull)
+      }
+    }
+  }
 
-      //TODO: start working through each step, upon receiving a completed message, go to the next step
-
-
-      //stepOrder.foldLeft(Seq.empty[ActorRef])()
+  def actorLoader(configName: String): ActorRef = {
+    configName match {
+      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(), "createLaunchConfig")
+      case "createELB" => context.actorOf(ELBSupervisor.props(), "createELB")
     }
   }
 }
@@ -48,8 +67,16 @@ object AWSWorkflow {
 
   case class Deploy(appConfig: Config, data: JsValue)
 
-  case class StartStep(previousCallsData: Map[String, JsValue], appData: JsValue)
+  case class StartStep(data: Map[String, JsValue], appData: JsValue)
+
+  case object Start
+
+  case object DeployInProgress
+
+  case object DeployCompleted
 
   case object StepCompleted
+
+  case object StartingWorkflow
 
 }
