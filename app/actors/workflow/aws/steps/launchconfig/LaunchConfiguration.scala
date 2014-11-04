@@ -16,16 +16,23 @@ class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorL
   override def receive: Receive = {
     case x: CreateLaunchConfig => {
       val instanceMonitoring = new InstanceMonitoring()
-        .withEnabled(x.detailedMonitoring)
+      x.detailedMonitoring match {
+        case Some(y) => instanceMonitoring.setEnabled(y)
+        case None => instanceMonitoring.setEnabled(false)
+      }
 
       val launchConfig = new CreateLaunchConfigurationRequest()
-        .withAssociatePublicIpAddress(x.publicIpAddress)
         .withImageId(x.amiImageId)
         .withInstanceMonitoring(instanceMonitoring)
         .withInstanceType(x.instanceType)
         .withKeyName(x.keyName)
         .withLaunchConfigurationName(x.labelName)
         .withSecurityGroups(x.securityGroups.toArray: _*)
+
+      x.publicIpAddress match {
+        case Some(y) => launchConfig.setAssociatePublicIpAddress(y)
+        case None => launchConfig.setAssociatePublicIpAddress(false)
+      }
 
       x.ebsOptimized match {
         case Some(y) => launchConfig.setEbsOptimized(y)
@@ -70,12 +77,12 @@ class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorL
 object LaunchConfiguration {
 
   case class CreateLaunchConfig(labelName: String,
-                                detailedMonitoring: Boolean,
-                                publicIpAddress: Boolean,
                                 amiImageId: String,
                                 instanceType: String,
                                 keyName: String,
                                 securityGroups: Seq[String],
+                                detailedMonitoring: Option[Boolean] = Some(false),
+                                publicIpAddress: Option[Boolean] = Some(false),
                                 userData: Option[String] = None,
                                 ebsOptimized: Option[Boolean] = None,
                                 iamInstanceProfile: Option[String] = None,

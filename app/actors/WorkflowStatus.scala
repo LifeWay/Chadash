@@ -18,9 +18,9 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
   var subscribers = Seq.empty[ActorRef]
 
   override def receive: Receive = {
-    case x: LogMessage => logger(x.msg)
+    case x: LogMessage => logger(x.message)
     case x: ItemFinished => {
-      logger(x.msg)
+      logger(x.message)
       stepsCompleted = stepsCompleted + 1
     }
     case GetStatus => {
@@ -43,11 +43,16 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
   }
 }
 
+
+
 object WorkflowStatus {
+  trait Log {
+    def message : String
+  }
 
-  case class LogMessage(msg: String)
+  case class LogMessage(message: String) extends Log
 
-  case class ItemFinished(msg: String)
+  case class ItemFinished(message: String) extends Log
 
   case object GetStatus
 

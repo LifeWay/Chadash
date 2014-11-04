@@ -2,60 +2,59 @@ package actors.workflow.aws.steps.elb
 
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
+import com.amazonaws.services.elasticloadbalancing.model.{CreateLoadBalancerRequest, Listener, Tag}
 
+import scala.collection.JavaConversions._
 import scala.concurrent.duration._
 
 class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorLogging {
 
-  import ElasticLoadBalancer._
+  import actors.workflow.aws.steps.elb.ElasticLoadBalancer._
 
   override def receive: Receive = {
     case x: CreateELB => {
 
-//      val listener = new Listener()
-//        .withInstancePort()
-//        .withInstanceProtocol()
-//        .withLoadBalancerPort()
-//        .withProtocol()
-//        .withSSLCertificateId()
-//
-//      val elb = new CreateLoadBalancerRequest()
-//        .withLoadBalancerName()
-//        .withAvailabilityZones()
-//        .withListeners(listener)
-//        .withSecurityGroups()
-//        .withSubnets()
-//        .withTags()
-//        .withScheme() //"internal" or don't set it.
-//
-//      val awsClient = new AmazonElasticLoadBalancingClient(credentials)
-//      val elbResult = awsClient.createLoadBalancer(elb)
-//
-//      //TODO: configure health check
-//      val healthCheck = new HealthCheck()
-//        .withTarget()
-//        .withInterval()
-//        .withTimeout()
-//        .withHealthyThreshold()
-//        .withUnhealthyThreshold()
-//
-//      val healthCheckRequest = new ConfigureHealthCheckRequest()
-//        .withLoadBalancerName()
-//        .withHealthCheck(healthCheck)
-//
-//      val elbAttributes = new LoadBalancerAttributes()
-//        .withAccessLog()
-//        .withConnectionDraining()
-//        .withConnectionSettings()
-//        .withCrossZoneLoadBalancing()
-//
-//      val modifyAttributesRequest = new ModifyLoadBalancerAttributesRequest()
-//        .withLoadBalancerName()
-//        .withLoadBalancerAttributes()
-//
-//      awsClient.configureHealthCheck(healthCheckRequest)
+      val listeners: Seq[Listener] = x.listeners.foldLeft(Seq.empty[Listener]) {
+        (x, i) => {
+          val listener = new Listener()
+            .withInstancePort(i.instancePort)
+            .withInstanceProtocol(i.instanceProtocol)
+            .withLoadBalancerPort(i.loadBalancerPort)
+            .withProtocol(i.loadBalancerProtocol)
 
-      context.parent ! ELBCreated(x.appVersion)
+          i.sslCertificateId match {
+            case Some(y) => listener.setSSLCertificateId(y)
+            case None => ()
+          }
+          x :+ listener
+        }
+      }
+
+      val elb = new CreateLoadBalancerRequest()
+        .withLoadBalancerName(x.loadBalancerName)
+        .withListeners(listeners)
+        .withSecurityGroups(x.securityGroups)
+        .withSubnets(x.subnets)
+
+      x.tags match {
+        case Some(y) => {
+          elb.setTags(y.seq.foldLeft(Seq.empty[Tag])((x, i) =>
+            x :+ new Tag().withKey(i._1).withValue(i._2)
+          ))
+        }
+        case None => ()
+      }
+
+      x.scheme match {
+        case Some(y) => elb.setScheme(y)
+        case None => ()
+      }
+
+      val awsClient = new AmazonElasticLoadBalancingClient(credentials)
+      val elbResult = awsClient.createLoadBalancer(elb)
+
+      context.parent ! ELBCreated(elbResult.getDNSName)
     }
   }
 
@@ -76,9 +75,21 @@ class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorL
 
 object ElasticLoadBalancer {
 
-  case class CreateELB(appVersion: String)
+  case class ELBListener(instancePort: Int,
+                         instanceProtocol: String,
+                         loadBalancerPort: Int,
+                         loadBalancerProtocol: String,
+                         sslCertificateId: Option[String])
 
-  case class ELBCreated(appVersion: String)
+  case class CreateELB(loadBalancerName: String,
+                       securityGroups: Seq[String],
+                       subnets: Seq[String],
+                       listeners: Seq[ELBListener],
+                       scheme: Option[String] = None,
+                       tags: Option[Seq[(String, String)]] = None
+                        )
+
+  case class ELBCreated(dnsName: String)
 
   def props(creds: AWSCredentials): Props = Props(new ElasticLoadBalancer(creds))
 }
