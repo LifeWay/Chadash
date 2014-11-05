@@ -32,6 +32,12 @@ object ConfigHelpers {
       None
     }
 
+    def getOptConfig(path: String): Option[Config] = if (underlying.hasPath(path)) {
+      Some(underlying.getConfig(path))
+    } else {
+      None
+    }
+
   }
 
 }

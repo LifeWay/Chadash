@@ -12,7 +12,7 @@ version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
 
 scalaVersion := "2.11.4"
 
-scalacOptions ++= Seq("-feature")
+scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 libraryDependencies ++= Seq(
   ws,
