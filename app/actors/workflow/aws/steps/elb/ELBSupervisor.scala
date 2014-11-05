@@ -1,15 +1,16 @@
 package actors.workflow.aws.steps.elb
 
-import javax.naming.LimitExceededException
-
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
 import actors.workflow.aws.AWSWorkflow.StartStep
+import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
+import actors.workflow.aws.steps.elb.HealthCheck.{HealthCheckConfigured, CreateELBHealthCheck, HealthCheckConfig}
 import akka.actor.SupervisorStrategy.{Restart, Stop}
 import akka.actor.{Actor, ActorLogging, OneForOneStrategy, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.model.AlreadyExistsException
+import com.amazonaws.services.elasticloadbalancing.model._
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import com.typesafe.config.{Config, ConfigFactory}
 import utils.ConfigHelpers._
@@ -21,16 +22,15 @@ import scala.concurrent.duration._
 class ELBSupervisor(var credentials: AWSCredentials) extends Actor with ActorLogging {
 
   var config: Config = ConfigFactory.empty()
+  var optionalSteps = Seq.empty[String]
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 5.minutes, loggingEnabled = false) {
-    case ex: LimitExceededException => {
+    //TODO: what I really want to do is say, if the exception type is a child of the more generic type - then fail, else if generic - try again, likely a communication issue.
+    case ex: InvalidSubnetException | AlreadyExistsException | InvalidConfigurationRequestException | DuplicateTagKeysException | CertificateNotFoundException
+         | InvalidSchemeException | DuplicateLoadBalancerNameException | TooManyLoadBalancersException | SubnetNotFoundException
+         | LoadBalancerNotFoundException => {
       context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
-      log.error(ex, "Limit has been exceeded")
-      Stop
-    }
-    case ex: AlreadyExistsException => {
-      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
-      log.error(ex, "Already exists")
+      log.error(ex, "Unrecoverable Amazon Exception")
       Stop
     }
     case _: AmazonServiceException => Restart
@@ -46,18 +46,20 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with ActorLog
     case x: StartStep => {
       config = x.configData.getConfig(s"steps.${aws.CreateElb}")
 
+      if(config.hasPath("healthCheck")) optionalSteps :+ "healthCheck"
+      //if(config.hasPath(""))
+
       val createELB = context.actorOf(ElasticLoadBalancer.props(credentials), "createLoadBalancer")
       context.watch(createELB)
 
       val listenerSeq: Seq[ELBListener] = config.getConfigList("listeners").foldLeft(Seq.empty[ELBListener])((sum, i) => {
-        val newListener = ELBListener(
+        sum :+ ELBListener(
           instancePort = i.getInt("instancePort"),
           instanceProtocol = i.getString("instanceProtocol"),
           loadBalancerPort = i.getInt("loadBalancerPort"),
           loadBalancerProtocol = i.getString("loadBalancerProtocol"),
           sslCertificateId = i.getOptString("sslCertificateId")
         )
-        sum :+ newListener
       })
 
       val optionalTags: Option[Seq[(String, String)]] = config.getOptConfigList("tags") match {
@@ -78,41 +80,69 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with ActorLog
   }
 
   def stepInProcess: Receive = {
-    case x:ELBCreated =>
+    case x: ELBCreated => {
       context.parent ! LogMessage(s"ELB created: ${x.dnsName}")
 
+      val elbAttributes = context.actorOf(ELBAttributes.props(credentials), "modifyELBAttributes")
+
+      val accessLog: Option[ELBAccessLog] = config.getOptConfig("accessLog") match {
+        case Some(y) => Some(new ELBAccessLog(
+          emitInterval = y.getInt("emitInterval"),
+          enabled = y.getBoolean("enabled"),
+          bucketName = y.getString("bucketName"),
+          bucketPrefix = y.getString("bucketPrefix")
+        ))
+        case None => None
+      }
+
+      val connectionDraining: Option[ELBConnectionDraining] = config.getOptConfig("connectionDraining") match {
+        case Some(y) => Some(new ELBConnectionDraining(
+          enabled = y.getBoolean("enabled"),
+          timeout = y.getInt("timeout")
+        ))
+        case None => None
+      }
+
+      elbAttributes ! SetELBAttributes(
+        elbName = "someRandomName",
+        idleTimeout = config.getInt("idleTimeout"),
+        crossZoneLB = config.getOptBoolean("crossZoneLoadBalancing"),
+        connectionDraining = connectionDraining
+      )
+    }
+    case ELBAttributesModified => {
+      //TODO: all the required ELB items are done, do we have a health check AND / OR security policy?
+
+      val healthCheck = context.actorOf(HealthCheck.props(credentials), "addHealthCheck")
+
+      val healthCheckConfig = config.getConfig("healthCheck")
+
+      val hc = HealthCheckConfig(
+        urlTarget = healthCheckConfig.getString("target"),
+        interval = healthCheckConfig.getInt("interval"),
+        timeout = healthCheckConfig.getInt("timeout"),
+        unhealthyThreshold = healthCheckConfig.getInt("unhealthyThreshold"),
+        healthyThreshold = healthCheckConfig.getInt("healthyThreshold")
+      )
+
+      healthCheck ! CreateELBHealthCheck(
+        loadBalancerName = "someRandomName",
+        healthCheck = hc
+      )
+    }
+
+    case HealthCheckConfigured => {
+
+    }
+
+
     //Child actors:
-    //CreateELB (covers AZ's, listeners, name, scheme, security groups, subnets, tags
-    //configureHealthCheck
-    //ELB security policy
-    //ELB attributes (cross-zone load balancing, connection draining, access logs, idle timeouts)
-
-
-    //      //TODO: configure health check
-    //      val healthCheck = new HealthCheck()
-    //        .withTarget()
-    //        .withInterval()
-    //        .withTimeout()
-    //        .withHealthyThreshold()
-    //        .withUnhealthyThreshold()
-    //
-    //      val healthCheckRequest = new ConfigureHealthCheckRequest()
-    //        .withLoadBalancerName()
-    //        .withHealthCheck(healthCheck)
-    //
-    //      val elbAttributes = new LoadBalancerAttributes()
-    //        .withAccessLog()
-    //        .withConnectionDraining()
-    //        .withConnectionSettings()
-    //        .withCrossZoneLoadBalancing()
-    //
-    //      val modifyAttributesRequest = new ModifyLoadBalancerAttributesRequest()
-    //        .withLoadBalancerName()
-    //        .withLoadBalancerAttributes()
-    //
-    //      awsClient.configureHealthCheck(healthCheckRequest)
-
+    // CreateELB (covers AZ's, listeners, name, scheme, security groups, subnets, tags
+    // ELB attributes (cross-zone load balancing, connection draining, access logs, idle timeouts)
+    // configureHealthCheck (optional)
+    // ELB security policy (optional)
   }
+
 }
 
 object ELBSupervisor {
