@@ -90,7 +90,8 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
         elbName = "someRandomName",
         idleTimeout = config.getInt("idleTimeout"),
         crossZoneLB = config.getOptBoolean("crossZoneLoadBalancing"),
-        connectionDraining = connectionDraining
+        connectionDraining = connectionDraining,
+        accessLogs = accessLog
       )
     }
     case ELBAttributesModified => {
