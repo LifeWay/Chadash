@@ -2,6 +2,7 @@ package actors.workflow.aws.steps.elb
 
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
+import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.aws.AWSWorkflow.StartStep
 import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
@@ -19,28 +20,10 @@ import utils.Constants
 import scala.collection.JavaConversions._
 import scala.concurrent.duration._
 
-class ELBSupervisor(var credentials: AWSCredentials) extends Actor with ActorLogging {
+class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
 
   var config: Config = ConfigFactory.empty()
   var optionalSteps = Seq.empty[String]
-
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 5.minutes, loggingEnabled = false) {
-    //TODO: what I really want to do is say, if the exception type is a child of the more generic type - then fail, else if generic - try again, likely a communication issue.
-    case ex: InvalidSubnetException | AlreadyExistsException | InvalidConfigurationRequestException | DuplicateTagKeysException | CertificateNotFoundException
-         | InvalidSchemeException | DuplicateLoadBalancerNameException | TooManyLoadBalancersException | SubnetNotFoundException
-         | LoadBalancerNotFoundException => {
-      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
-      log.error(ex, "Unrecoverable Amazon Exception")
-      Stop
-    }
-    case _: AmazonServiceException => Restart
-    case _: AmazonClientException => Restart
-    case ex: Exception => {
-      context.child(Constants.statusActorName).get ! LogMessage(ex.toString)
-      log.error(ex, "Catch-all Exception Handler.")
-      Stop
-    }
-  }
 
   override def receive: Receive = {
     case x: StartStep => {

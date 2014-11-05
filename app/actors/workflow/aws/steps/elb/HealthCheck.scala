@@ -7,7 +7,7 @@ import com.amazonaws.services.elasticloadbalancing.{AmazonElasticLoadBalancingCl
 
 import scala.concurrent.duration._
 
-class HealthCheck(credentials: AWSCredentials) extends Actor with ActorLogging {
+class HealthCheck(credentials: AWSCredentials) extends Actor  with ActorLogging {
 
   import actors.workflow.aws.steps.elb.HealthCheck._
 
@@ -39,7 +39,7 @@ class HealthCheck(credentials: AWSCredentials) extends Actor with ActorLogging {
     import scala.concurrent.ExecutionContext.Implicits.global
 
     message.get match {
-      case x: CreateELBHealthCheck => context.system.scheduler.scheduleOnce(10.seconds, self, x)
+      case x: CreateELBHealthCheck => context.system.scheduler.scheduleOnce(15.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }

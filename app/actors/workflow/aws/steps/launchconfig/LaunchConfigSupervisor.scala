@@ -1,43 +1,17 @@
 package actors.workflow.aws.steps.launchconfig
 
-import javax.naming.LimitExceededException
-
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
-import actors.workflow.aws.AWSWorkflow
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
 import actors.workflow.aws.steps.launchconfig.LaunchConfiguration.{CreateLaunchConfig, _}
-import akka.actor.SupervisorStrategy.{Restart, Stop}
+import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.autoscaling.model.AlreadyExistsException
-import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import utils.ConfigHelpers.RichConfig
 
 import scala.collection.JavaConversions._
-import scala.concurrent.duration._
 
-class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with ActorLogging {
-
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 3, withinTimeRange = 5.minutes, loggingEnabled = false) {
-    case ex: LimitExceededException => {
-      context.parent ! LogMessage(ex.toString)
-      log.error(ex, "Limit has been exceeded")
-      Stop
-    }
-    case ex: AlreadyExistsException => {
-      context.parent ! LogMessage(ex.toString)
-      log.error(ex, "Already exists")
-      Stop
-    }
-    case _: AmazonServiceException => Restart
-    case _: AmazonClientException => Restart
-    case ex: Exception => {
-      context.parent ! LogMessage(ex.toString)
-      log.error(ex, "Catch-all Exception Handler.")
-      Stop
-    }
-  }
+class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
 
   override def receive: Receive = {
     case x: StartStep => {

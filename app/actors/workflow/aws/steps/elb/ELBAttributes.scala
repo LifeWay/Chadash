@@ -34,7 +34,7 @@ class ELBAttributes(credentials: AWSCredentials) extends Actor with ActorLogging
         case Some(y) => elbAttributes.setConnectionDraining(
           new ConnectionDraining()
             .withEnabled(true)
-            .withTimeout(y))
+            .withTimeout(y.timeout))
         case None => elbAttributes.setConnectionDraining(
           new ConnectionDraining()
             .withEnabled(false))
@@ -69,7 +69,7 @@ class ELBAttributes(credentials: AWSCredentials) extends Actor with ActorLogging
     import scala.concurrent.ExecutionContext.Implicits.global
 
     message.get match {
-      case x: SetELBAttributes => context.system.scheduler.scheduleOnce(10.seconds, self, x)
+      case x: SetELBAttributes => context.system.scheduler.scheduleOnce(15.seconds, self, x)
       case _ => log.warning("Actor restarting, but message is not being replayed.")
     }
   }
