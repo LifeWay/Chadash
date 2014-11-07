@@ -3,7 +3,7 @@ package actors.workflow.aws.steps.elb
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
 import actors.workflow.aws.AWSSupervisorStrategy
-import actors.workflow.aws.AWSWorkflow.StartStep
+import actors.workflow.aws.AWSWorkflow.{StepFinished, StartStep}
 import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
 import actors.workflow.aws.steps.elb.HealthCheck.{HealthCheckConfigured, CreateELBHealthCheck, HealthCheckConfig}
@@ -29,34 +29,35 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
     case x: StartStep => {
       config = x.configData.getConfig(s"steps.${aws.CreateElb}")
 
-      if(config.hasPath("healthCheck")) optionalSteps :+ "healthCheck"
-      //if(config.hasPath(""))
+      if(config.hasPath("HealthCheck")) optionalSteps :+ "HealthCheck"
 
       val createELB = context.actorOf(ElasticLoadBalancer.props(credentials), "createLoadBalancer")
       context.watch(createELB)
 
-      val listenerSeq: Seq[ELBListener] = config.getConfigList("listeners").foldLeft(Seq.empty[ELBListener])((sum, i) => {
+      val listenerSeq: Seq[ELBListener] = config.getConfigList("ListenerDescriptions").foldLeft(Seq.empty[ELBListener])((sum, i) => {
+        val listenerConfig = i.getConfig("Listener")
         sum :+ ELBListener(
-          instancePort = i.getInt("instancePort"),
-          instanceProtocol = i.getString("instanceProtocol"),
-          loadBalancerPort = i.getInt("loadBalancerPort"),
-          loadBalancerProtocol = i.getString("loadBalancerProtocol"),
-          sslCertificateId = i.getOptString("sslCertificateId")
+          instancePort = listenerConfig.getInt("InstancePort"),
+          instanceProtocol = listenerConfig.getString("InstanceProtocol"),
+          loadBalancerPort = listenerConfig.getInt("LoadBalancerPort"),
+          loadBalancerProtocol = listenerConfig.getString("Protocol"),
+          sslCertificateId = listenerConfig.getOptString("SSLCertificateId")
         )
       })
 
-      val optionalTags: Option[Seq[(String, String)]] = config.getOptConfigList("tags") match {
+      val optionalTags: Option[Seq[(String, String)]] = config.getOptConfigList("Tags") match {
         case Some(y) => Some(y.foldLeft(Seq.empty[(String, String)])((sum, i) => sum :+(i.getString("name"), i.getString("value"))))
         case None => None
       }
 
+      context.parent ! LogMessage(s"ELB: Attempting to create...")
       createELB ! CreateELB(
         loadBalancerName = "someRandomName",
-        securityGroups = config.getStringList("securityGroups"),
-        subnets = config.getStringList("subnets"),
+        securityGroups = config.getStringList("SecurityGroups"),
+        subnets = config.getStringList("Subnets"),
         listeners = listenerSeq,
         tags = optionalTags,
-        scheme = config.getOptString("scheme")
+        scheme = config.getOptString("Scheme")
       )
       context.become(stepInProcess)
     }
@@ -64,50 +65,54 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
 
   def stepInProcess: Receive = {
     case x: ELBCreated => {
-      context.parent ! LogMessage(s"ELB created: ${x.dnsName}")
+      context.parent ! LogMessage(s"ELB: Created: ${x.dnsName}")
 
       val elbAttributes = context.actorOf(ELBAttributes.props(credentials), "modifyELBAttributes")
 
-      val accessLog: Option[ELBAccessLog] = config.getOptConfig("accessLog") match {
+      val accessLog: Option[ELBAccessLog] = config.getOptConfig("AccessLog") match {
         case Some(y) => Some(new ELBAccessLog(
-          emitInterval = y.getInt("emitInterval"),
-          enabled = y.getBoolean("enabled"),
-          bucketName = y.getString("bucketName"),
-          bucketPrefix = y.getString("bucketPrefix")
+          emitInterval = y.getInt("EmitInterval"),
+          enabled = y.getBoolean("Enabled"),
+          bucketName = y.getString("BucketName"),
+          bucketPrefix = y.getString("BucketPrefix")
         ))
         case None => None
       }
 
-      val connectionDraining: Option[ELBConnectionDraining] = config.getOptConfig("connectionDraining") match {
+      val connectionDraining: Option[ELBConnectionDraining] = config.getOptConfig("ConnectionDraining") match {
         case Some(y) => Some(new ELBConnectionDraining(
-          enabled = y.getBoolean("enabled"),
-          timeout = y.getInt("timeout")
+          enabled = y.getBoolean("Enabled"),
+          timeout = y.getInt("Timeout")
         ))
         case None => None
       }
 
+      context.parent ! LogMessage(s"ELB: Attempting to set configuration attributes")
       elbAttributes ! SetELBAttributes(
         elbName = "someRandomName",
-        idleTimeout = config.getInt("idleTimeout"),
-        crossZoneLB = config.getOptBoolean("crossZoneLoadBalancing"),
+        idleTimeout = config.getConfig("ConnectionSettings").getInt("IdleTimeout"),
+        crossZoneLB = config.getOptBoolean("CrossZoneLoadBalancing"),
         connectionDraining = connectionDraining,
         accessLogs = accessLog
       )
     }
     case ELBAttributesModified => {
       //TODO: all the required ELB items are done, do we have a health check AND / OR security policy?
+      context.parent ! LogMessage(s"ELB: Configuration attributes set")
 
       val healthCheck = context.actorOf(HealthCheck.props(credentials), "addHealthCheck")
 
-      val healthCheckConfig = config.getConfig("healthCheck")
+      val healthCheckConfig = config.getConfig("HealthCheck")
 
       val hc = HealthCheckConfig(
-        urlTarget = healthCheckConfig.getString("target"),
-        interval = healthCheckConfig.getInt("interval"),
-        timeout = healthCheckConfig.getInt("timeout"),
-        unhealthyThreshold = healthCheckConfig.getInt("unhealthyThreshold"),
-        healthyThreshold = healthCheckConfig.getInt("healthyThreshold")
+        urlTarget = healthCheckConfig.getString("Target"),
+        interval = healthCheckConfig.getInt("Interval"),
+        timeout = healthCheckConfig.getInt("Timeout"),
+        unhealthyThreshold = healthCheckConfig.getInt("UnhealthyThreshold"),
+        healthyThreshold = healthCheckConfig.getInt("HealthyThreshold")
       )
+
+      context.parent ! LogMessage(s"ELB: Attempting to create health check")
 
       healthCheck ! CreateELBHealthCheck(
         loadBalancerName = "someRandomName",
@@ -117,6 +122,12 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
 
     case HealthCheckConfigured => {
 
+      context.parent ! LogMessage(s"ELB: Health check created")
+
+
+      context.parent ! LogMessage("ELB: All steps completed")
+      context.parent ! StepFinished(None)
+      context.unbecome()
     }
 
 

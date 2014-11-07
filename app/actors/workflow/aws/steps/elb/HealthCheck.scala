@@ -7,7 +7,7 @@ import com.amazonaws.services.elasticloadbalancing.{AmazonElasticLoadBalancingCl
 
 import scala.concurrent.duration._
 
-class HealthCheck(credentials: AWSCredentials) extends Actor  with ActorLogging {
+class HealthCheck(credentials: AWSCredentials) extends Actor with ActorLogging {
 
   import actors.workflow.aws.steps.elb.HealthCheck._
 
@@ -59,5 +59,5 @@ object HealthCheck {
 
   case object HealthCheckConfigured
 
-  def props(creds: AWSCredentials): Props = Props(new ElasticLoadBalancer(creds))
+  def props(creds: AWSCredentials): Props = Props(new HealthCheck(creds))
 }
