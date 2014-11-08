@@ -2,12 +2,13 @@ package actors.workflow.aws.steps.elb
 
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
-import actors.workflow.aws.AWSSupervisorStrategy
+import actors.workflow.aws.{AWSWorkflow, AWSSupervisorStrategy}
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
 import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
+import actors.workflow.aws.steps.elb.ELBSupervisor.ELBStepFailed
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
 import actors.workflow.aws.steps.elb.HealthCheck.{CreateELBHealthCheck, HealthCheckConfig, HealthCheckConfigured}
-import akka.actor.{Actor, Props}
+import akka.actor.{Terminated, Actor, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.{Config, ConfigFactory}
 import utils.ConfigHelpers._
@@ -68,6 +69,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
       steps.seq.map {
         case "modifyELBAttributes" =>
           val elbAttributes = context.actorOf(ELBAttributes.props(credentials), "modifyELBAttributes")
+          context.watch(elbAttributes)
 
           val accessLog: Option[ELBAccessLog] = config.getOptConfig("AccessLog") match {
             case Some(y) => Some(new ELBAccessLog(
@@ -97,6 +99,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
           )
         case "HealthCheck" =>
           val healthCheck = context.actorOf(HealthCheck.props(credentials), "addHealthCheck")
+          context.watch(healthCheck)
 
           val healthCheckConfig = config.getConfig("HealthCheck")
 
@@ -128,6 +131,12 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
       context.parent ! LogMessage(s"ELB: Health check created")
       updateAndCheckIfFinished()
     }
+    case ELBStepFailed =>
+      context.parent ! AWSWorkflow.StepFailed
+    case Terminated(actorRef) => {
+      context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+      context.parent ! AWSWorkflow.StepFailed
+    }
   }
 
   def updateAndCheckIfFinished(): Unit = {
@@ -143,6 +152,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
 
 object ELBSupervisor {
 
+  case object ELBStepFailed
 
   def props(credentials: AWSCredentials): Props = Props(new ELBSupervisor(credentials))
 }
