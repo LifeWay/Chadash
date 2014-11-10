@@ -2,13 +2,14 @@ package actors.workflow.aws.steps.elb
 
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
-import actors.workflow.aws.{AWSWorkflow, AWSSupervisorStrategy}
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
 import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
+import actors.workflow.aws.steps.elb.ELBPoliciesSupervisor.{CreateELBPolicies, ELBPoliciesConfigured, ELBPolicyAttribute, ELBPolicyDef}
 import actors.workflow.aws.steps.elb.ELBSupervisor.ELBStepFailed
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
 import actors.workflow.aws.steps.elb.HealthCheck.{CreateELBHealthCheck, HealthCheckConfig, HealthCheckConfigured}
-import akka.actor.{Terminated, Actor, Props}
+import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
+import akka.actor.{Actor, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.{Config, ConfigFactory}
 import utils.ConfigHelpers._
@@ -118,7 +119,27 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
             healthCheck = hc
           )
         case "Policies" =>
-          log.debug("Not ready for policies yet...")
+          val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials))
+          context.watch(elbPolicySupervisor)
+
+          val policyConfigs = config.getConfigList("Policies")
+
+          val policyAttributes = policyConfigs.foldLeft(Seq.empty[ELBPolicyDef])(
+            (sum, i) => {
+              val policyAttributeDescriptions = i.getConfigList("PolicyAttributeDescriptions")
+              val policyAttributeList = policyAttributeDescriptions.foldLeft(Seq.empty[ELBPolicyAttribute])(
+                (sum2, i2) => sum2 :+ ELBPolicyAttribute(i2.getString("AttributeName"), i2.getString("AttributeValue"))
+              )
+              sum :+ ELBPolicyDef(i.getString("PolicyName"), i.getString("PolicyTypeName"), policyAttributeList)
+            }
+          )
+
+          context.parent ! LogMessage(s"Policies: Attempting to create ELB Policies")
+
+          elbPolicySupervisor ! CreateELBPolicies(
+            loadBalancerName = "someRandomName",
+            policies = policyAttributes
+          )
         case m: Any => log.warning(s"Unknown type ${m.toString}")
       }
     }
@@ -126,9 +147,12 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
       context.parent ! LogMessage(s"ELB: Configuration attributes set")
       updateAndCheckIfFinished()
     }
-
     case HealthCheckConfigured => {
       context.parent ! LogMessage(s"ELB: Health check created")
+      updateAndCheckIfFinished()
+    }
+    case ELBPoliciesConfigured => {
+      context.parent ! LogMessage(s"Policies: Policies Created & Attached")
       updateAndCheckIfFinished()
     }
     case ELBStepFailed =>

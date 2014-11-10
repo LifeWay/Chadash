@@ -1,9 +1,8 @@
 package actors.workflow.aws.steps.elb
 
-import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.aws.steps.elb.ELBPoliciesSupervisor.ELBPolicyDef
 import actors.workflow.aws.steps.elb.ELBPolicy.PolicyCreated
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancing.model.{CreateLoadBalancerPolicyRequest, PolicyAttribute}
@@ -11,7 +10,7 @@ import com.amazonaws.services.elasticloadbalancing.model.{CreateLoadBalancerPoli
 import scala.collection.JavaConversions._
 import scala.concurrent.duration._
 
-class ELBPolicy(credentials: AWSCredentials, loadBalancerName: String) extends Actor with AWSSupervisorStrategy {
+class ELBPolicy(credentials: AWSCredentials, loadBalancerName: String) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case x: ELBPolicyDef =>

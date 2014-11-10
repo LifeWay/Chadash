@@ -1,10 +1,11 @@
 package actors.workflow.aws.steps.elb
 
+import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.aws.steps.elb.ELBPolicy.PolicyCreated
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-class ELBPoliciesSupervisor(credentials: AWSCredentials) extends Actor with ActorLogging {
+class ELBPoliciesSupervisor(credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
 
   import actors.workflow.aws.steps.elb.ELBPoliciesSupervisor._
 
@@ -12,21 +13,21 @@ class ELBPoliciesSupervisor(credentials: AWSCredentials) extends Actor with Acto
   var completedPolicies = 0
 
   override def receive: Receive = {
-
-    //TODO: handle start .. and then read in all the policy config data, become working after that.
-
     case x: CreateELBPolicies =>
       totalPolicies = x.policies.size
-      x.policies.map { y =>
-        val policy = context.actorOf(ELBPolicy.props(credentials, x.loadBalancerName), y.policyName)
+      x.policies.map { policyDef =>
+        val policy = context.actorOf(ELBPolicy.props(credentials, x.loadBalancerName), policyDef.policyName)
         context.watch(policy)
-        policy ! y
+        policy ! policyDef
       }
     case PolicyCreated =>
       context.unwatch(sender())
       completedPolicies = completedPolicies + 1
-      if (completedPolicies == totalPolicies)
-        context.parent ! ELBPoliciesConfigured
+      if (completedPolicies == totalPolicies) {
+        val attachPolicies = context.actorOf(AttachPolicies.props(credentials), "attachPolicies")
+        context.watch(attachPolicies)
+        attachPolicies ! "TODO"
+      }
     case Terminated(actorRef) =>
       self ! PoisonPill
   }
