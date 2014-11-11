@@ -4,7 +4,7 @@ import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
 import actors.workflow.aws.steps.elb.ELBAttributes.{ELBAccessLog, ELBAttributesModified, ELBConnectionDraining, SetELBAttributes}
-import actors.workflow.aws.steps.elb.ELBPoliciesSupervisor.{CreateELBPolicies, ELBPoliciesConfigured, ELBPolicyAttribute, ELBPolicyDef}
+import actors.workflow.aws.steps.elb.ELBPoliciesSupervisor._
 import actors.workflow.aws.steps.elb.ELBSupervisor.ELBStepFailed
 import actors.workflow.aws.steps.elb.ElasticLoadBalancer.{CreateELB, ELBCreated, ELBListener}
 import actors.workflow.aws.steps.elb.HealthCheck.{CreateELBHealthCheck, HealthCheckConfig, HealthCheckConfigured}
@@ -14,7 +14,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.{Config, ConfigFactory}
 import utils.ConfigHelpers._
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
 
@@ -26,21 +26,20 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
     case x: StartStep => {
       config = x.configData.getConfig(s"steps.${aws.CreateElb}")
 
-      steps :+ "modifyELBAttributes"
-      if (config.hasPath("HealthCheck")) steps :+ "HealthCheck"
-      if (config.hasPath("Policies")) steps :+ "Policies"
+      steps = steps :+ "modifyELBAttributes"
+      if (config.hasPath("HealthCheck")) steps = steps :+ "HealthCheck"
+      if (config.hasPath("Policies") && config.hasPath("ListenerPolicies")) steps = steps :+ "Policies"
 
       val createELB = context.actorOf(ElasticLoadBalancer.props(credentials), "createLoadBalancer")
       context.watch(createELB)
 
-      val listenerSeq: Seq[ELBListener] = config.getConfigList("ListenerDescriptions").foldLeft(Seq.empty[ELBListener])((sum, i) => {
-        val listenerConfig = i.getConfig("Listener")
+      val listenerSeq: Seq[ELBListener] = config.getConfigList("ListenerDescriptions").asScala.foldLeft(Seq.empty[ELBListener])((sum, i) => {
         sum :+ ELBListener(
-          instancePort = listenerConfig.getInt("InstancePort"),
-          instanceProtocol = listenerConfig.getString("InstanceProtocol"),
-          loadBalancerPort = listenerConfig.getInt("LoadBalancerPort"),
-          loadBalancerProtocol = listenerConfig.getString("Protocol"),
-          sslCertificateId = listenerConfig.getOptString("SSLCertificateId")
+          instancePort = i.getInt("InstancePort"),
+          instanceProtocol = i.getString("InstanceProtocol"),
+          loadBalancerPort = i.getInt("LoadBalancerPort"),
+          loadBalancerProtocol = i.getString("Protocol"),
+          sslCertificateId = i.getOptString("SSLCertificateId")
         )
       })
 
@@ -52,8 +51,8 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
       context.parent ! LogMessage(s"ELB: Attempting to create...")
       createELB ! CreateELB(
         loadBalancerName = "someRandomName",
-        securityGroups = config.getStringList("SecurityGroups"),
-        subnets = config.getStringList("Subnets"),
+        securityGroups = config.getStringList("SecurityGroups").asScala,
+        subnets = config.getStringList("Subnets").asScala,
         listeners = listenerSeq,
         tags = optionalTags,
         scheme = config.getOptString("Scheme")
@@ -119,27 +118,15 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
             healthCheck = hc
           )
         case "Policies" =>
-          val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials))
+          val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials, "someRandomName"))
           context.watch(elbPolicySupervisor)
 
           val policyConfigs = config.getConfigList("Policies")
+          val listenerPolicies = config.getConfig("ListenerPolicies")
 
-          val policyAttributes = policyConfigs.foldLeft(Seq.empty[ELBPolicyDef])(
-            (sum, i) => {
-              val policyAttributeDescriptions = i.getConfigList("PolicyAttributeDescriptions")
-              val policyAttributeList = policyAttributeDescriptions.foldLeft(Seq.empty[ELBPolicyAttribute])(
-                (sum2, i2) => sum2 :+ ELBPolicyAttribute(i2.getString("AttributeName"), i2.getString("AttributeValue"))
-              )
-              sum :+ ELBPolicyDef(i.getString("PolicyName"), i.getString("PolicyTypeName"), policyAttributeList)
-            }
-          )
+          context.parent ! LogMessage(s"ELB: Attempting to create and attach listener policies")
+          elbPolicySupervisor ! SetupELBPolicies(policyConfigs.asScala, listenerPolicies)
 
-          context.parent ! LogMessage(s"Policies: Attempting to create ELB Policies")
-
-          elbPolicySupervisor ! CreateELBPolicies(
-            loadBalancerName = "someRandomName",
-            policies = policyAttributes
-          )
         case m: Any => log.warning(s"Unknown type ${m.toString}")
       }
     }
@@ -152,7 +139,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
       updateAndCheckIfFinished()
     }
     case ELBPoliciesConfigured => {
-      context.parent ! LogMessage(s"Policies: Policies Created & Attached")
+      context.parent ! LogMessage(s"ELB: Policies Created & Attached")
       updateAndCheckIfFinished()
     }
     case ELBStepFailed =>
