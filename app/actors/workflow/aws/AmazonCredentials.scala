@@ -16,7 +16,8 @@ import scala.concurrent.duration._
 class AmazonCredentials extends Actor with ActorLogging {
 
   import actors.AmazonCredentials._
-  import scala.concurrent.ExecutionContext.Implicits.global
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
   val tick = context.system.scheduler.schedule(1.minute, 30.minutes, self, Tick)
 
@@ -25,15 +26,21 @@ class AmazonCredentials extends Actor with ActorLogging {
   var credentials: Option[AWSCredentials] = None
 
   override def receive: Receive = {
-    case Tick => loadCreds()
-    case Initialize => loadCreds()
-    case ForceReload => loadCreds()
-    case RequestCredentials => {
+    case Tick =>
+      loadCreds()
+
+    case Initialize =>
+      loadCreds()
+
+    case ForceReload =>
+      loadCreds()
+
+    case RequestCredentials =>
       sender() ! (credentials match {
         case Some(x) => CurrentCredentials(x)
         case None => NoCredentials
       })
-    }
+
   }
 
   def loadCreds(): Unit = {

@@ -44,7 +44,7 @@ class AWSWorkflow extends Actor with ActorLogging {
 
   override def receive: Receive = {
 
-    case x: Deploy => {
+    case x: Deploy =>
       appConfig = x.appConfig
       appVersion = (x.data \ "version").as[Int]
       appName = (x.data \ "name").as[JsString].value
@@ -58,16 +58,18 @@ class AWSWorkflow extends Actor with ActorLogging {
       sender() ! StartingWorkflow
       become(workflowProcessing)
       self ! Start
-    }
   }
 
+
   def workflowProcessing: Receive = {
-    case x: Deploy => sender() ! DeployInProgress
-    case Start => {
+    case x: Deploy =>
+      sender() ! DeployInProgress
+
+    case Start =>
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
-    }
-    case x: CurrentCredentials => {
+
+    case x: CurrentCredentials =>
       context.unwatch(sender())
       credentials = x.credentials
 
@@ -75,9 +77,8 @@ class AWSWorkflow extends Actor with ActorLogging {
       steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i))
 
       steps(currentStep) ! StartStep(appVersion, appName, stepResultData, appConfig, deployData)
-    }
-    case x: StepFinished => {
-      //Record data
+
+    case x: StepFinished =>
       stepResultData + (stepSequence(currentStep) -> x.stepData)
 
       currentStep = currentStep + 1
@@ -85,23 +86,24 @@ class AWSWorkflow extends Actor with ActorLogging {
         case true => parent ! DeployCompleted
         case false => steps(currentStep) ! StartStep(appVersion, appName, stepResultData, appConfig, deployData)
       }
-    }
-    case x: Log => {
+
+    case x: Log =>
       context.child(Constants.statusActorName) match {
         case Some(actor) => actor forward x
         case None => () //TODO: this should never happen, should we raise an exception maybe?
       }
-    }
-    case Terminated(actorRef) => {
+
+    case Terminated(actorRef) =>
       self ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       parent ! DeploymentSupervisor.DeployFailed
-    }
-    case StepFailed => {
+
+    case StepFailed =>
       //Step Supervisors should be able to heal themselves if they are able. If we receive a step failed, the whole job fails and needs a human.
       self ! LogMessage(s"The following step has failed: ${stepSequence(currentStep)}}")
       parent ! DeploymentSupervisor.DeployFailed
-    }
-    case m: Any => log.debug("Unhandled message type received: " + m.toString)
+
+    case m: Any =>
+      log.debug("Unhandled message type received: " + m.toString)
   }
 
   def actorLoader(configName: String): ActorRef = {

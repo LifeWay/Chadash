@@ -14,7 +14,7 @@ import scala.collection.JavaConversions._
 class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
 
   override def receive: Receive = {
-    case x: StartStep => {
+    case x: StartStep =>
       val config = x.configData.getConfig(s"steps.${aws.CreateLaunchConfig}")
 
       val launchConfig = context.actorOf(LaunchConfiguration.props(credentials), "launchConfig")
@@ -38,19 +38,19 @@ class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with
         placementTenancy = config.getOptString("placementTenancy")
       )
       context.become(stepInProcess)
-    }
+
   }
 
   def stepInProcess: Receive = {
-    case LaunchConfigCreated => {
+    case LaunchConfigCreated =>
       context.parent ! LogMessage("Launch Config: Completed")
       context.parent ! StepFinished(None)
       context.unbecome()
-    }
-    case Terminated(actorRef) => {
+
+    case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       context.parent ! AWSWorkflow.StepFailed
-    }
+
   }
 }
 

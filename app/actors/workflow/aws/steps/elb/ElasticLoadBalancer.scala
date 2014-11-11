@@ -13,8 +13,7 @@ class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorL
   import actors.workflow.aws.steps.elb.ElasticLoadBalancer._
 
   override def receive: Receive = {
-    case x: CreateELB => {
-
+    case x: CreateELB =>
       val listeners: Seq[Listener] = x.listeners.foldLeft(Seq.empty[Listener]) {
         (x, i) => {
           val listener = new Listener()
@@ -55,7 +54,6 @@ class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorL
       val elbResult = awsClient.createLoadBalancer(elb)
 
       context.parent ! ELBCreated(elbResult.getDNSName)
-    }
   }
 
   override def postRestart(reason: Throwable): Unit = {

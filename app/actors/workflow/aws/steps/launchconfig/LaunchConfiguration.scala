@@ -14,7 +14,7 @@ class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorL
   import actors.workflow.aws.steps.launchconfig.LaunchConfiguration._
 
   override def receive: Receive = {
-    case x: CreateLaunchConfig => {
+    case x: CreateLaunchConfig =>
       val instanceMonitoring = new InstanceMonitoring()
       x.detailedMonitoring match {
         case Some(y) => instanceMonitoring.setEnabled(y)
@@ -56,7 +56,7 @@ class LaunchConfiguration(credentials: AWSCredentials) extends Actor with ActorL
       awsClient.createLaunchConfiguration(launchConfig)
 
       context.parent ! LaunchConfigCreated
-    }
+
   }
 
   override def postRestart(reason: Throwable): Unit = {

@@ -23,7 +23,7 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
   var stepsCompleted = 0
 
   override def receive: Receive = {
-    case x: StartStep => {
+    case x: StartStep =>
       config = x.configData.getConfig(s"steps.${aws.CreateElb}")
 
       steps = steps :+ "modifyELBAttributes"
@@ -58,11 +58,10 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
         scheme = config.getOptString("Scheme")
       )
       context.become(stepInProcess)
-    }
   }
 
   def stepInProcess: Receive = {
-    case x: ELBCreated => {
+    case x: ELBCreated =>
       context.parent ! LogMessage(s"ELB: Created: ${x.dnsName}")
 
       //Fan out the parallel configuration steps
@@ -97,6 +96,7 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
             connectionDraining = connectionDraining,
             accessLogs = accessLog
           )
+
         case "HealthCheck" =>
           val healthCheck = context.actorOf(HealthCheck.props(credentials), "addHealthCheck")
           context.watch(healthCheck)
@@ -117,6 +117,7 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
             loadBalancerName = elbName,
             healthCheck = hc
           )
+
         case "Policies" =>
           val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials, elbName))
           context.watch(elbPolicySupervisor)
@@ -128,26 +129,27 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
           elbPolicySupervisor ! SetupELBPolicies(policyConfigs.asScala, listenerPolicies)
 
         case m: Any => log.warning(s"Unknown type ${m.toString}")
-      }
     }
-    case ELBAttributesModified => {
+
+    case ELBAttributesModified =>
       context.parent ! LogMessage(s"ELB: Configuration attributes set")
       updateAndCheckIfFinished()
-    }
-    case HealthCheckConfigured => {
+
+    case HealthCheckConfigured =>
       context.parent ! LogMessage(s"ELB: Health check created")
       updateAndCheckIfFinished()
-    }
-    case ELBPoliciesConfigured => {
+
+    case ELBPoliciesConfigured =>
       context.parent ! LogMessage(s"ELB: Policies Created & Attached")
       updateAndCheckIfFinished()
-    }
+
     case ELBStepFailed =>
       context.parent ! AWSWorkflow.StepFailed
-    case Terminated(actorRef) => {
+
+    case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       context.parent ! AWSWorkflow.StepFailed
-    }
+
   }
 
   def updateAndCheckIfFinished(): Unit = {

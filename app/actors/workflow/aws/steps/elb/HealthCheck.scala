@@ -12,8 +12,7 @@ class HealthCheck(credentials: AWSCredentials) extends Actor with ActorLogging {
   import actors.workflow.aws.steps.elb.HealthCheck._
 
   override def receive: Receive = {
-    case x: CreateELBHealthCheck => {
-
+    case x: CreateELBHealthCheck =>
       val healthCheck = new model.HealthCheck()
         .withTarget(x.healthCheck.urlTarget)
         .withInterval(x.healthCheck.interval)
@@ -27,7 +26,7 @@ class HealthCheck(credentials: AWSCredentials) extends Actor with ActorLogging {
         .withLoadBalancerName(x.loadBalancerName))
 
       context.parent ! HealthCheckConfigured
-    }
+
   }
 
   override def postRestart(reason: Throwable): Unit = {

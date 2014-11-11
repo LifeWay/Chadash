@@ -5,21 +5,21 @@ import akka.actor._
 
 class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends Actor with ActorLogging {
 
-  import WorkflowStatusWebSocket._
+  import actors.workflow.aws.WorkflowStatusWebSocket._
 
   workflowStatus ! DeployStatusSubscribeConfirm
   context.watch(workflowStatus)
 
   override def receive: Receive = {
-    case msg: String => {
-      log.debug("Received a message down the socket, ignoring it: " + msg);
+    case msg: String =>
       out ! "This is a one-way websocket. I do not accept messages!"
-    }
-    case x: MessageToClient => out ! (x.msg + "\n")
-    case x: Terminated => {
+
+    case x: MessageToClient =>
+      out ! (x.msg + "\n")
+
+    case x: Terminated =>
       x.getActor == workflowStatus
       self ! PoisonPill
-    }
   }
 }
 

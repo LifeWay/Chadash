@@ -19,21 +19,20 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case x: LogMessage => logger(x.message)
-    case x: ItemFinished => {
+    case x: ItemFinished =>
       logger(x.message)
       stepsCompleted = stepsCompleted + 1
-    }
-    case GetStatus => {
+
+    case GetStatus =>
       sender() ! Status(stepsCompleted / totalSteps, logs)
-    }
-    case x: DeployStatusSubscribeRequest => {
+
+    case x: DeployStatusSubscribeRequest =>
       sender() ! SubscribeToMe(self)
-    }
-    case DeployStatusSubscribeConfirm => {
+
+    case DeployStatusSubscribeConfirm =>
       subscribers = subscribers :+ sender()
-      //Catch the subscriber up to current state
       logs.map(x => sender() ! MessageToClient(x))
-    }
+
   }
 
   def logger(msg: String): Unit = {
@@ -44,10 +43,10 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 }
 
 
-
 object WorkflowStatus {
+
   trait Log {
-    def message : String
+    def message: String
   }
 
   case class LogMessage(message: String) extends Log

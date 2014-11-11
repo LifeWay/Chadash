@@ -17,7 +17,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case deploy: Deploy => {
+    case deploy: Deploy =>
       val actorName = s"workflow-${deploy.appName}"
       val appConfig = ConfigFactory.load("deployment").getConfig(deploy.appName)
       val data: JsValue = Json.obj(
@@ -36,32 +36,33 @@ class DeploymentSupervisor extends Actor with ActorLogging {
           workflowActor forward deployMessage
         }
       }
-    }
-    case status: DeployStatusQuery => {
+
+    case status: DeployStatusQuery =>
       val actorName = s"workflow-${status.appName}"
       context.child(actorName) match {
         case Some(x) => x ! GetStatus
         case None => sender() ! NoWorkflow
       }
-    }
-    case subscribe: DeployStatusSubscribeRequest => {
+
+    case subscribe: DeployStatusSubscribeRequest =>
       val actorName = s"workflow-${subscribe.appName}"
       context.child(actorName) match {
         case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
       }
-    }
+
     case DeployCompleted =>
       context.unwatch(sender())
       context.stop(sender())
-    case DeployFailed => {
+
+    case DeployFailed =>
       log.error("Deployment failed for this workflow:" + sender().toString())
       context.unwatch(sender())
       context.stop(sender())
-    }
-    case Terminated(actorRef) => {
+
+    case Terminated(actorRef) =>
       log.error(s"One of our workflows has died...the deployment has failed and needs a human ${actorRef.toString}")
-    }
+
   }
 }
 
