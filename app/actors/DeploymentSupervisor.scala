@@ -2,6 +2,7 @@ package actors
 
 import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus}
 import actors.workflow.aws.AWSWorkflow
+import actors.workflow.aws.AWSWorkflow.DeployCompleted
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 import com.typesafe.config.ConfigFactory
@@ -50,6 +51,9 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         case None => sender() ! NoWorkflow
       }
     }
+    case DeployCompleted =>
+      context.unwatch(sender())
+      context.stop(sender())
     case DeployFailed => {
       log.error("Deployment failed for this workflow:" + sender().toString())
       context.unwatch(sender())
