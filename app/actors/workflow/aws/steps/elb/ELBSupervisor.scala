@@ -16,7 +16,7 @@ import utils.ConfigHelpers._
 
 import scala.collection.JavaConverters._
 
-class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
+class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor with AWSSupervisorStrategy {
 
   var config: Config = ConfigFactory.empty()
   var steps = Seq.empty[String]
@@ -50,7 +50,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
 
       context.parent ! LogMessage(s"ELB: Attempting to create...")
       createELB ! CreateELB(
-        loadBalancerName = "someRandomName",
+        loadBalancerName = elbName,
         securityGroups = config.getStringList("SecurityGroups").asScala,
         subnets = config.getStringList("Subnets").asScala,
         listeners = listenerSeq,
@@ -91,7 +91,7 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
 
           context.parent ! LogMessage(s"ELB: Attempting to set configuration attributes")
           elbAttributes ! SetELBAttributes(
-            elbName = "someRandomName",
+            elbName = elbName,
             idleTimeout = config.getConfig("ConnectionSettings").getInt("IdleTimeout"),
             crossZoneLB = config.getOptBoolean("CrossZoneLoadBalancing"),
             connectionDraining = connectionDraining,
@@ -114,11 +114,11 @@ class ELBSupervisor(var credentials: AWSCredentials) extends Actor with AWSSuper
           context.parent ! LogMessage(s"ELB: Attempting to create health check")
 
           healthCheck ! CreateELBHealthCheck(
-            loadBalancerName = "someRandomName",
+            loadBalancerName = elbName,
             healthCheck = hc
           )
         case "Policies" =>
-          val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials, "someRandomName"))
+          val elbPolicySupervisor = context.actorOf(ELBPoliciesSupervisor.props(credentials, elbName))
           context.watch(elbPolicySupervisor)
 
           val policyConfigs = config.getConfigList("Policies")
@@ -165,5 +165,5 @@ object ELBSupervisor {
 
   case object ELBStepFailed
 
-  def props(credentials: AWSCredentials): Props = Props(new ELBSupervisor(credentials))
+  def props(credentials: AWSCredentials, elbName: String): Props = Props(new ELBSupervisor(credentials, elbName))
 }
