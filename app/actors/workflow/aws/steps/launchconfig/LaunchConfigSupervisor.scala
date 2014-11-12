@@ -11,7 +11,7 @@ import utils.ConfigHelpers.RichConfig
 
 import scala.collection.JavaConversions._
 
-class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with AWSSupervisorStrategy {
+class LaunchConfigSupervisor(credentials: AWSCredentials,label: String) extends Actor with AWSSupervisorStrategy {
 
   override def receive: Receive = {
     case x: StartStep =>
@@ -25,7 +25,7 @@ class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with
 
       context.parent ! LogMessage("Launch Config: Attempting to create")
       launchConfig ! CreateLaunchConfig(
-        labelName = s"${x.appName}-v${x.appVersion}",
+        labelName = label,
         detailedMonitoring = config.getOptBoolean("detailedMonitoring"),
         publicIpAddress = config.getOptBoolean("publicIpAddress"),
         amiImageId = amiName,
@@ -56,5 +56,5 @@ class LaunchConfigSupervisor(var credentials: AWSCredentials) extends Actor with
 
 object LaunchConfigSupervisor {
 
-  def props(credentials: AWSCredentials): Props = Props(new LaunchConfigSupervisor(credentials))
+  def props(credentials: AWSCredentials, label: String): Props = Props(new LaunchConfigSupervisor(credentials, label))
 }

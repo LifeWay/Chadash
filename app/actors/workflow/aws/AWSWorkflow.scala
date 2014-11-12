@@ -49,7 +49,7 @@ class AWSWorkflow extends Actor with ActorLogging {
       appVersion = (x.data \ "version").as[Int]
       appName = (x.data \ "name").as[JsString].value
       deployData = x.data
-      label = s"${appName}-v${appVersion}"
+      label = s"${appConfig.getString("systemName")}-v${appVersion}"
 
       val workflowStatus = context.actorOf(WorkflowStatus.props(5), utils.Constants.statusActorName)
       context.watch(workflowStatus)
@@ -108,7 +108,7 @@ class AWSWorkflow extends Actor with ActorLogging {
 
   def actorLoader(configName: String): ActorRef = {
     configName match {
-      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials), CreateLaunchConfig)
+      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials, label), CreateLaunchConfig)
       case "createELB" => context.actorOf(ELBSupervisor.props(credentials, label), CreateElb)
       case _ => null
     }
