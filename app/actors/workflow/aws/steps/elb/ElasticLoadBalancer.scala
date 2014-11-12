@@ -5,7 +5,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancing.model.{CreateLoadBalancerRequest, Listener, Tag}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorLogging {
@@ -32,15 +32,15 @@ class ElasticLoadBalancer(credentials: AWSCredentials) extends Actor with ActorL
 
       val elb = new CreateLoadBalancerRequest()
         .withLoadBalancerName(x.loadBalancerName)
-        .withListeners(listeners)
-        .withSecurityGroups(x.securityGroups)
-        .withSubnets(x.subnets)
+        .withListeners(listeners.asJava)
+        .withSecurityGroups(x.securityGroups.asJava)
+        .withSubnets(x.subnets.asJava)
 
       x.tags match {
         case Some(y) => {
           elb.setTags(y.seq.foldLeft(Seq.empty[Tag])((x, i) =>
             x :+ new Tag().withKey(i._1).withValue(i._2)
-          ))
+          ).asJava)
         }
         case None => ()
       }
