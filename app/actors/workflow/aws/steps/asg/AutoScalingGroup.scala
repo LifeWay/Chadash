@@ -23,6 +23,7 @@ class AutoScalingGroup(credentials: AWSCredentials) extends Actor with ActorLogg
         .withLoadBalancerNames(x.labelName)
         .withMaxSize(x.maxSize)
         .withMinSize(x.minSize)
+        .withVPCZoneIdentifier(x.vpcSubnets.mkString(","))
 
       x.defaultCoolDown match {
         case Some(y) => asgRequest.withDefaultCooldown(y)

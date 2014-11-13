@@ -24,6 +24,7 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
 
   override def receive: Receive = {
     case x: StartStep =>
+
       config = x.configData.getConfig(s"steps.${aws.CreateElb}")
 
       steps = steps :+ "modifyELBAttributes"
@@ -43,18 +44,30 @@ class ELBSupervisor(credentials: AWSCredentials, elbName: String) extends Actor 
         )
       })
 
+      val globalTags: Option[Seq[(String, String)]] = x.configData.getOptConfigList("Tags") match {
+        case Some(y) => Some(y.foldLeft(Seq.empty[(String, String)])((sum, i) => sum :+(i.getString("name"), i.getString("value"))))
+        case None => None
+      }
+
       val optionalTags: Option[Seq[(String, String)]] = config.getOptConfigList("Tags") match {
         case Some(y) => Some(y.foldLeft(Seq.empty[(String, String)])((sum, i) => sum :+(i.getString("name"), i.getString("value"))))
         case None => None
+      }
+
+      val mergedTags: Option[Seq[(String, String)]] = (globalTags, optionalTags) match {
+        case (Some(y), Some(y1)) => Some(y ++ y1)
+        case (Some(y), None) => Some(y)
+        case (None, Some(y1)) => Some(y1)
+        case _ => None
       }
 
       context.parent ! LogMessage(s"ELB: Attempting to create...")
       createELB ! CreateELB(
         loadBalancerName = elbName,
         securityGroups = config.getStringList("SecurityGroups").asScala,
-        subnets = config.getStringList("Subnets").asScala,
+        subnets = x.configData.getStringList("Subnets").asScala,
         listeners = listenerSeq,
-        tags = optionalTags,
+        tags = mergedTags,
         scheme = config.getOptString("Scheme")
       )
       context.become(stepInProcess)

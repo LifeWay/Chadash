@@ -2,6 +2,7 @@ package actors.workflow.aws
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.WorkflowStatus.{Log, LogMessage}
+import actors.workflow.aws.steps.asg.ASGSupervisor
 import actors.workflow.aws.steps.elb.ELBSupervisor
 import actors.workflow.aws.steps.launchconfig.LaunchConfigSupervisor
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
@@ -110,6 +111,7 @@ class AWSWorkflow extends Actor with ActorLogging {
     configName match {
       case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials, label), CreateLaunchConfig)
       case "createELB" => context.actorOf(ELBSupervisor.props(credentials, label), CreateElb)
+      case "createELBASG" => context.actorOf(ASGSupervisor.props(credentials, label), CreateElbASG)
       case _ => null
     }
   }
