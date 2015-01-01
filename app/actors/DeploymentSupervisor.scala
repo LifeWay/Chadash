@@ -8,6 +8,16 @@ import akka.actor._
 import com.typesafe.config.ConfigFactory
 import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
 
+/**
+ * The deployment supervisor is responsible for the mgmt of the actor hierarchies on a per stackname
+ * basis. This supervisor will create a new AWSWorkflow supervisor per each stack deployment and monitor
+ * that deployments progress through all of the steps.
+ *
+ * As long as deployment is running on a stack, you can query the status of the deployment, etc.
+ *
+ * In general, this is the "window" into the deployment from which the controllers send their commands and queries
+ * from the HTTP requests.
+ */
 class DeploymentSupervisor extends Actor with ActorLogging {
 
   import actors.DeploymentSupervisor._
@@ -18,34 +28,31 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case deploy: Deploy =>
-      val actorName = s"workflow-${deploy.stackName}"
-      val appConfig = ConfigFactory.load("deployment").getConfig(deploy.stackName)
+      val actorName = s"workflow-${deploy.env}-${deploy.stackName}"
       val data: JsValue = Json.obj(
         "version" -> JsString(deploy.appVersion),
         "name" -> JsString(deploy.stackName),
         "imageId" -> JsString(deploy.amiId)
       )
 
-      val deployMessage = AWSWorkflow.Deploy(appConfig, data)
-
       context.child(actorName) match {
-        case Some(x) => x forward deployMessage
+        case Some(x) => x forward deploy
         case None => {
           val workflowActor = context.actorOf(Props[AWSWorkflow], actorName)
           context.watch(workflowActor)
-          workflowActor forward deployMessage
+          workflowActor forward deploy
         }
       }
 
     case status: DeployStatusQuery =>
-      val actorName = s"workflow-${status.appName}"
+      val actorName = s"workflow-${status.env}-${status.stackName}"
       context.child(actorName) match {
         case Some(x) => x ! GetStatus
         case None => sender() ! NoWorkflow
       }
 
     case subscribe: DeployStatusSubscribeRequest =>
-      val actorName = s"workflow-${subscribe.appName}"
+      val actorName = s"workflow-${subscribe.env}-${subscribe.stackName}"
       context.child(actorName) match {
         case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
@@ -68,9 +75,9 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
 object DeploymentSupervisor {
 
-  case class Deploy(stackName: String, appVersion: String, amiId: String)
+  case class Deploy(env: String, stackName: String, appVersion: String, amiId: String)
 
-  case class DeployStatusQuery(appName: String)
+  case class DeployStatusQuery(env: String, stackName: String)
 
   case class DeployWorkflow(workflowActor: ActorRef)
 

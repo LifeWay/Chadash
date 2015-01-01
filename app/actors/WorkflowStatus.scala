@@ -59,7 +59,7 @@ object WorkflowStatus {
 
   case class SubscribeToMe(ref: ActorRef)
 
-  case class DeployStatusSubscribeRequest(appName: String)
+  case class DeployStatusSubscribeRequest(env: String, stackName: String)
 
   case object DeployStatusSubscribeConfirm
 

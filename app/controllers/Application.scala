@@ -25,7 +25,7 @@ package controllers
       Ok("Welcome to Chadash. The immutable Cloud Deployer!")
     }
 
-  def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { request =>
+  def deploy(env: String, stackName: String) = Action.async(BodyParsers.parse.json) { request =>
     val res = request.body.validate[Deployment]
     res.fold(
       errors => Future(BadRequest(Json.obj("status" -> "Processing Error", "message" -> JsError.toFlatJson(errors)))),
@@ -34,7 +34,7 @@ package controllers
 
         implicit val to = Timeout(Duration(2, "seconds"))
         val f = for (
-          res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackName, deployment.version, deployment.amiId)
+          res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(env, stackName, deployment.version, deployment.amiId)
         ) yield res
 
         f.map(x => Ok(s"$x"))
@@ -42,11 +42,11 @@ package controllers
     )
   }
 
-  def statusSocket(appName: String) = {
+  def statusSocket(env: String, appName: String) = {
     WebSocket.tryAcceptWithActor[String, String] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
       val f = for (
-        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(appName)
+        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(env, appName)
       ) yield res
 
       f.map {
@@ -56,7 +56,7 @@ package controllers
     }
   }
 
-  def status(appName: String) = Action {
+  def status(env: String, appName: String) = Action {
     Ok("fetching status...")
   }
 

@@ -1,15 +1,14 @@
 package actors.workflow.aws
 
 import actors.AmazonCredentials.CurrentCredentials
+import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
-import akka.actor.{Actor, ActorLogging, ActorRef, Terminated}
+import akka.actor._
 import com.amazonaws.auth.AWSCredentials
-import com.typesafe.config.{Config, ConfigFactory}
-import play.api.libs.json.{JsNull, JsString, JsValue}
+import com.typesafe.config.ConfigFactory
+import play.api.libs.json.JsValue
 import utils.Constants
-
-import scala.collection.JavaConversions._
 
 /**
  * One AWS workflow actor will be created per deployment request. This actor's job is to read in the configuration for
@@ -27,27 +26,21 @@ class AWSWorkflow extends Actor with ActorLogging {
   import actors.workflow.aws.AWSWorkflow._
   import context._
 
-  var label = ""
-  var appVersion = 0
-  var appName = ""
-  var deployData: JsValue = JsNull
-  var appConfig = ConfigFactory.empty()
+  var deploy: Deploy = null
   var credentials: AWSCredentials = null
 
   //STEPS
+  val stepSequence: Seq[String] = Seq("loadStackFile", "initialCheck", "oldAsgLookup", "asgFreeze")
   var currentStep = 0
-  var stepSequence: Seq[String] = Seq.empty[String]
   var steps = Seq.empty[ActorRef]
   var stepResultData = Map.empty[String, Option[JsValue]]
 
   override def receive: Receive = {
 
-    case x: Deploy =>
-      appConfig = x.appConfig
-      appVersion = (x.data \ "version").as[Int]
-      appName = (x.data \ "name").as[JsString].value
-      deployData = x.data
-      label = s"${appConfig.getString("systemName")}-v${appVersion}"
+    case deployMsg: Deploy =>
+      deploy = deployMsg
+      val appConfig = ConfigFactory.load()
+      val stackbucket = appConfig.getString("chadash.stack-bucket")
 
       val workflowStatus = context.actorOf(WorkflowStatus.props(5), utils.Constants.statusActorName)
       context.watch(workflowStatus)
@@ -70,11 +63,9 @@ class AWSWorkflow extends Actor with ActorLogging {
     case x: CurrentCredentials =>
       context.unwatch(sender())
       credentials = x.credentials
-
-      stepSequence = appConfig.getStringList("stepOrder").to[Seq]
       steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i))
 
-      steps(currentStep) ! StartStep(appVersion, appName, stepResultData, appConfig, deployData)
+      steps(currentStep) ! StartStep(deploy.appVersion, deploy.stackName, stepResultData)
 
     case x: StepFinished =>
       stepResultData + (stepSequence(currentStep) -> x.stepData)
@@ -82,7 +73,7 @@ class AWSWorkflow extends Actor with ActorLogging {
       currentStep = currentStep + 1
       steps.size == currentStep match {
         case true => parent ! DeployCompleted
-        case false => steps(currentStep) ! StartStep(appVersion, appName, stepResultData, appConfig, deployData)
+        case false => steps(currentStep) ! StartStep(deploy.appVersion, deploy.stackName, stepResultData)
       }
 
     case x: Log =>
@@ -106,9 +97,10 @@ class AWSWorkflow extends Actor with ActorLogging {
 
   def actorLoader(configName: String): ActorRef = {
     configName match {
-//      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials, label), CreateLaunchConfig)
-//      case "createELB" => context.actorOf(ELBSupervisor.props(credentials, label), CreateElb)
-//      case "createELBASG" => context.actorOf(ASGSupervisor.props(credentials, label), CreateElbASG)
+      case "loadStackFile" => null
+      case "initialCheck" => null
+      case "oldAsgLookup" => null
+      case "asgFreeze" => null
       case _ => null
     }
   }
@@ -116,9 +108,7 @@ class AWSWorkflow extends Actor with ActorLogging {
 
 object AWSWorkflow {
 
-  case class Deploy(appConfig: Config, data: JsValue)
-
-  case class StartStep(appVersion: Int, appName: String, data: Map[String, Option[JsValue]], configData: Config, deployData: JsValue)
+  case class StartStep(appVersion: String, stackName: String, data: Map[String, Option[JsValue]])
 
   case class StepFinished(stepData: Option[JsValue])
 
