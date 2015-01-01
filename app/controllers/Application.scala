@@ -1,29 +1,29 @@
 package controllers
 
-import actors.DeploymentSupervisor.NoWorkflow
-import actors.WorkflowStatus.SubscribeToMe
-import actors.workflow.aws.WorkflowStatusWebSocket
-import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus}
-import akka.pattern.ask
-import akka.util.Timeout
-import com.lifeway.chadash.appversion.BuildInfo
-import models.Deployment
-import play.api.Play.current
-import play.api.libs.concurrent.Execution.Implicits.defaultContext
-import play.api.libs.json.{JsError, _}
-import play.api.mvc._
+  import actors.DeploymentSupervisor.NoWorkflow
+  import actors.WorkflowStatus.SubscribeToMe
+  import actors.workflow.aws.WorkflowStatusWebSocket
+  import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus}
+  import akka.pattern.ask
+  import akka.util.Timeout
+  import com.lifeway.chadash.appversion.BuildInfo
+  import models.Deployment
+  import play.api.Play.current
+  import play.api.libs.concurrent.Execution.Implicits.defaultContext
+  import play.api.libs.json.{JsError, _}
+  import play.api.mvc._
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
+  import scala.concurrent.Future
+  import scala.concurrent.duration._
 
-object Application extends Controller {
+  object Application extends Controller {
 
-  val jvmVersion = java.lang.System.getProperty("java.version")
-  val jvmVendor = java.lang.System.getProperty("java.vendor")
+    val jvmVersion = java.lang.System.getProperty("java.version")
+    val jvmVendor = java.lang.System.getProperty("java.vendor")
 
-  def index = Action {
-    Ok("Welcome to Chadash. The immutable Cloud Deployer!")
-  }
+    def index = Action {
+      Ok("Welcome to Chadash. The immutable Cloud Deployer!")
+    }
 
   def deploy(appName: String) = Action.async(BodyParsers.parse.json) { request =>
     val res = request.body.validate[Deployment]

@@ -6,7 +6,7 @@ import scala.collection.JavaConversions._
 
 object ConfigHelpers {
 
-  implicit class RichConfig(val underlying: Config) extends AnyVal {
+  implicit class RichConfig(val underlying: Config){
 
     def getOptBoolean(path: String): Option[Boolean] = if (underlying.hasPath(path)) {
       Some(underlying.getBoolean(path))
