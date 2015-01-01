@@ -18,12 +18,12 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case deploy: Deploy =>
-      val actorName = s"workflow-${deploy.appName}"
-      val appConfig = ConfigFactory.load("deployment").getConfig(deploy.appName)
+      val actorName = s"workflow-${deploy.stackName}"
+      val appConfig = ConfigFactory.load("deployment").getConfig(deploy.stackName)
       val data: JsValue = Json.obj(
-        "version" -> JsNumber(deploy.appVersion),
-        "name" -> JsString(deploy.appName),
-        "imageId" -> JsString(deploy.amiName)
+        "version" -> JsString(deploy.appVersion),
+        "name" -> JsString(deploy.stackName),
+        "imageId" -> JsString(deploy.amiId)
       )
 
       val deployMessage = AWSWorkflow.Deploy(appConfig, data)
@@ -68,7 +68,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
 object DeploymentSupervisor {
 
-  case class Deploy(appName: String, appVersion: Int, amiName: String, userData: Option[String])
+  case class Deploy(stackName: String, appVersion: String, amiId: String)
 
   case class DeployStatusQuery(appName: String)
 

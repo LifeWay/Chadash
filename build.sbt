@@ -17,7 +17,7 @@ scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 libraryDependencies ++= Seq(
   ws,
   filters,
-  "com.amazonaws" % "aws-java-sdk" % "1.8.10.1",
+  "com.amazonaws" % "aws-java-sdk" % "1.9.13",
   "com.google.code.findbugs" % "jsr305" % "3.0.0"
 )
 

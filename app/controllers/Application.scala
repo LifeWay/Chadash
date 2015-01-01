@@ -25,7 +25,7 @@ package controllers
       Ok("Welcome to Chadash. The immutable Cloud Deployer!")
     }
 
-  def deploy(appName: String) = Action.async(BodyParsers.parse.json) { request =>
+  def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { request =>
     val res = request.body.validate[Deployment]
     res.fold(
       errors => Future(BadRequest(Json.obj("status" -> "Processing Error", "message" -> JsError.toFlatJson(errors)))),
@@ -34,7 +34,7 @@ package controllers
 
         implicit val to = Timeout(Duration(2, "seconds"))
         val f = for (
-          res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(appName, deployment.version, deployment.amiId, deployment.userData)
+          res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackName, deployment.version, deployment.amiId)
         ) yield res
 
         f.map(x => Ok(s"$x"))

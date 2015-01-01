@@ -2,9 +2,6 @@ package actors.workflow.aws
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.WorkflowStatus.{Log, LogMessage}
-import actors.workflow.aws.steps.asg.ASGSupervisor
-import actors.workflow.aws.steps.elb.ELBSupervisor
-import actors.workflow.aws.steps.launchconfig.LaunchConfigSupervisor
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor.{Actor, ActorLogging, ActorRef, Terminated}
 import com.amazonaws.auth.AWSCredentials
@@ -109,9 +106,9 @@ class AWSWorkflow extends Actor with ActorLogging {
 
   def actorLoader(configName: String): ActorRef = {
     configName match {
-      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials, label), CreateLaunchConfig)
-      case "createELB" => context.actorOf(ELBSupervisor.props(credentials, label), CreateElb)
-      case "createELBASG" => context.actorOf(ASGSupervisor.props(credentials, label), CreateElbASG)
+//      case "createLaunchConfig" => context.actorOf(LaunchConfigSupervisor.props(credentials, label), CreateLaunchConfig)
+//      case "createELB" => context.actorOf(ELBSupervisor.props(credentials, label), CreateElb)
+//      case "createELBASG" => context.actorOf(ASGSupervisor.props(credentials, label), CreateElbASG)
       case _ => null
     }
   }
