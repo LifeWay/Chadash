@@ -18,7 +18,8 @@ libraryDependencies ++= Seq(
   ws,
   filters,
   "com.amazonaws" % "aws-java-sdk" % "1.9.13",
-  "com.google.code.findbugs" % "jsr305" % "3.0.0"
+  "com.google.code.findbugs" % "jsr305" % "3.0.0",
+  "commons-io" % "commons-io" % "2.4"
 )
 
 //----

@@ -3,6 +3,8 @@ package actors.workflow.aws
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
+import actors.workflow.steps.stackloader.LoadStackSupervisor
+import actors.workflow.steps.validateandfreeze.ValidateAndFreezeSupervisor
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
@@ -28,9 +30,10 @@ class AWSWorkflow extends Actor with ActorLogging {
 
   var deploy: Deploy = null
   var credentials: AWSCredentials = null
+  var stackBucket: String = null
 
   //STEPS
-  val stepSequence: Seq[String] = Seq("loadStackFile", "initialCheck", "oldAsgLookup", "asgFreeze")
+  val stepSequence: Seq[String] = Seq("loadStackFile", "validateAndFreeze")
   var currentStep = 0
   var steps = Seq.empty[ActorRef]
   var stepResultData = Map.empty[String, Option[JsValue]]
@@ -40,7 +43,7 @@ class AWSWorkflow extends Actor with ActorLogging {
     case deployMsg: Deploy =>
       deploy = deployMsg
       val appConfig = ConfigFactory.load()
-      val stackbucket = appConfig.getString("chadash.stack-bucket")
+      stackBucket = appConfig.getString("chadash.stack-bucket")
 
       val workflowStatus = context.actorOf(WorkflowStatus.props(5), utils.Constants.statusActorName)
       context.watch(workflowStatus)
@@ -63,9 +66,9 @@ class AWSWorkflow extends Actor with ActorLogging {
     case x: CurrentCredentials =>
       context.unwatch(sender())
       credentials = x.credentials
-      steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i))
+      steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i, stackBucket))
 
-      steps(currentStep) ! StartStep(deploy.appVersion, deploy.stackName, stepResultData)
+      steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
 
     case x: StepFinished =>
       stepResultData + (stepSequence(currentStep) -> x.stepData)
@@ -73,7 +76,7 @@ class AWSWorkflow extends Actor with ActorLogging {
       currentStep = currentStep + 1
       steps.size == currentStep match {
         case true => parent ! DeployCompleted
-        case false => steps(currentStep) ! StartStep(deploy.appVersion, deploy.stackName, stepResultData)
+        case false => steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
       }
 
     case x: Log =>
@@ -95,12 +98,10 @@ class AWSWorkflow extends Actor with ActorLogging {
       log.debug("Unhandled message type received: " + m.toString)
   }
 
-  def actorLoader(configName: String): ActorRef = {
+  def actorLoader(configName: String, stackBucket: String): ActorRef = {
     configName match {
-      case "loadStackFile" => null
-      case "initialCheck" => null
-      case "oldAsgLookup" => null
-      case "asgFreeze" => null
+      case "loadStackFile" => context.actorOf(LoadStackSupervisor.props(credentials, stackBucket), "loadStackFile")
+      case "validateAndFreeze" => context.actorOf(ValidateAndFreezeSupervisor.props(credentials), "validateAndFreeze")
       case _ => null
     }
   }
@@ -108,7 +109,7 @@ class AWSWorkflow extends Actor with ActorLogging {
 
 object AWSWorkflow {
 
-  case class StartStep(appVersion: String, stackName: String, data: Map[String, Option[JsValue]])
+  case class StartStep(env: String, appVersion: String, stackName: String, data: Map[String, Option[JsValue]])
 
   case class StepFinished(stepData: Option[JsValue])
 
