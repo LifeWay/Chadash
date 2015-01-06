@@ -8,26 +8,26 @@ import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 
 class LoadStackSupervisor(credentials: AWSCredentials, bucketName: String) extends Actor with ActorLogging with AWSSupervisorStrategy {
-override def receive: Receive = {
-case step: StartStep =>
+  override def receive: Receive = {
+    case step: StartStep =>
 
-val stackLoaderActor = context.actorOf(StackLoader.props(credentials, bucketName))
-context.watch(stackLoaderActor)
+      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, bucketName))
+      context.watch(stackLoaderActor)
 
-stackLoaderActor ! LoadStack(step.env, step.stackName)
-context.become(stepInProcess)
-}
+      stackLoaderActor ! LoadStack(step.env, step.stackName)
+      context.become(stepInProcess)
+  }
 
-def stepInProcess: Receive = {
-case StackLoaded(x) =>
-context.parent ! LogMessage("StackLoader: Completed")
-context.parent ! StepFinished(Some(x))
-context.unbecome()
+  def stepInProcess: Receive = {
+    case StackLoaded(x) =>
+      context.parent ! LogMessage("StackLoader: Completed")
+      context.parent ! StepFinished(Some(x))
+      context.unbecome()
 
-case Terminated(actorRef) =>
-context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-context.parent ! AWSWorkflow.StepFailed
-}
+    case Terminated(actorRef) =>
+      context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+      context.parent ! AWSWorkflow.StepFailed
+  }
 }
 
 object LoadStackSupervisor {
