@@ -72,30 +72,37 @@ class AWSWorkflow extends Actor with ActorLogging {
 
     case x: StepFinished =>
       stepResultData + (stepSequence(currentStep) -> x.stepData)
+      logMessage(s"Step Completed: ${stepSequence(currentStep)}")
 
       currentStep = currentStep + 1
       steps.size == currentStep match {
         case true => parent ! DeployCompleted
-        case false => steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
+        case false =>
+          logMessage(s"Starting Step: ${stepSequence(currentStep)}")
+          steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
       }
 
     case x: Log =>
-      context.child(Constants.statusActorName) match {
-        case Some(actor) => actor forward x
-        case None => () //TODO: this should never happen, should we raise an exception maybe?
-      }
+      logMessage(x.message)
 
     case Terminated(actorRef) =>
-      self ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+      logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       parent ! DeploymentSupervisor.DeployFailed
 
     case StepFailed =>
       //Step Supervisors should be able to heal themselves if they are able. If we receive a step failed, the whole job fails and needs a human.
-      self ! LogMessage(s"The following step has failed: ${stepSequence(currentStep)}}")
+      logMessage(s"The following step has failed: ${stepSequence(currentStep)}}")
       parent ! DeploymentSupervisor.DeployFailed
 
     case m: Any =>
       log.debug("Unhandled message type received: " + m.toString)
+  }
+
+  def logMessage(message: String) =  {
+    context.child(Constants.statusActorName) match {
+      case Some(actor) => actor ! LogMessage(message)
+      case None => log.error(s"Unable to find logging status actor to send log message to. This is an error. Message that would have been delivered: ${message}")
+    }
   }
 
   def actorLoader(configName: String, stackBucket: String): ActorRef = {
