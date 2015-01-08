@@ -3,6 +3,7 @@ package actors.workflow.aws
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
+import actors.workflow.steps.newstack.NewStackSupervisor
 import actors.workflow.steps.stackloader.LoadStackSupervisor
 import actors.workflow.steps.validateandfreeze.ValidateAndFreezeSupervisor
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
@@ -33,7 +34,7 @@ class AWSWorkflow extends Actor with ActorLogging {
   var stackBucket: String = null
 
   //STEPS
-  val stepSequence: Seq[String] = Seq("loadStackFile", "validateAndFreeze")
+  val stepSequence: Seq[String] = Seq("loadStackFile", "validateAndFreeze", "newStack")
   var currentStep = 0
   var steps = Seq.empty[ActorRef]
   var stepResultData = Map.empty[String, Option[JsValue]]
@@ -68,10 +69,10 @@ class AWSWorkflow extends Actor with ActorLogging {
       credentials = x.credentials
       steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i, stackBucket))
 
-      steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
+      steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.amiId, deploy.stackName, stepResultData)
 
     case x: StepFinished =>
-      stepResultData + (stepSequence(currentStep) -> x.stepData)
+      stepResultData = stepResultData + (stepSequence(currentStep) -> x.stepData)
       logMessage(s"Step Completed: ${stepSequence(currentStep)}")
 
       currentStep = currentStep + 1
@@ -79,7 +80,7 @@ class AWSWorkflow extends Actor with ActorLogging {
         case true => parent ! DeployCompleted
         case false =>
           logMessage(s"Starting Step: ${stepSequence(currentStep)}")
-          steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.stackName, stepResultData)
+          steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.amiId, deploy.stackName, stepResultData)
       }
 
     case x: Log =>
@@ -89,9 +90,9 @@ class AWSWorkflow extends Actor with ActorLogging {
       logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       parent ! DeploymentSupervisor.DeployFailed
 
-    case StepFailed =>
+    case msg: StepFailed =>
       //Step Supervisors should be able to heal themselves if they are able. If we receive a step failed, the whole job fails and needs a human.
-      logMessage(s"The following step has failed: ${stepSequence(currentStep)}}")
+      logMessage(s"The following step has failed: ${stepSequence(currentStep)}} for the following reason: ${msg.reason}")
       parent ! DeploymentSupervisor.DeployFailed
 
     case m: Any =>
@@ -109,18 +110,18 @@ class AWSWorkflow extends Actor with ActorLogging {
     configName match {
       case "loadStackFile" => context.actorOf(LoadStackSupervisor.props(credentials, stackBucket), "loadStackFile")
       case "validateAndFreeze" => context.actorOf(ValidateAndFreezeSupervisor.props(credentials), "validateAndFreeze")
-      case _ => null
+      case "newStack" => context.actorOf(NewStackSupervisor.props(credentials), "newStack")
     }
   }
 }
 
 object AWSWorkflow {
 
-  case class StartStep(env: String, appVersion: String, stackName: String, data: Map[String, Option[JsValue]])
+  case class StartStep(env: String, appVersion: String, stackAmi: String, stackName: String, data: Map[String, Option[JsValue]])
 
   case class StepFinished(stepData: Option[JsValue])
 
-  case object StepFailed
+  case class StepFailed(reason: String)
 
   case object Start
 

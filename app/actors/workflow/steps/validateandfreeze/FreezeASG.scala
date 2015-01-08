@@ -7,6 +7,7 @@ import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
 
 import scala.concurrent.duration._
+import scala.collection.JavaConverters._
 
 class FreezeASG(credentials: AWSCredentials) extends Actor with ActorLogging {
 
@@ -17,8 +18,8 @@ class FreezeASG(credentials: AWSCredentials) extends Actor with ActorLogging {
 
       val suspendProcessesRequest = new SuspendProcessesRequest()
         .withAutoScalingGroupName(query.asgName)
+        .withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
 
-      log.debug("freeze request received.. processing")
       val awsClient = new AmazonAutoScalingClient(credentials)
       awsClient.suspendProcesses(suspendProcessesRequest)
       context.parent ! ASGFrozen(query.asgName)
