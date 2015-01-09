@@ -3,9 +3,7 @@ package actors.workflow.aws
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
-import actors.workflow.steps.newstack.NewStackSupervisor
-import actors.workflow.steps.stackloader.LoadStackSupervisor
-import actors.workflow.steps.validateandfreeze.ValidateAndFreezeSupervisor
+import actors.workflow.steps.{ValidateAndFreezeSupervisor, LoadStackSupervisor, NewStackSupervisor}
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials

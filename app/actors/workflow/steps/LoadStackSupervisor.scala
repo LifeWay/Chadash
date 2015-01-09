@@ -1,10 +1,9 @@
-package actors.workflow.steps.stackloader
+package actors.workflow.steps
 
 import actors.WorkflowStatus.LogMessage
-import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
-import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
+import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.tasks.StackLoader
-import StackLoader.{LoadStack, StackLoaded}
+import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 

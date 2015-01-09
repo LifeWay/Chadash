@@ -1,17 +1,8 @@
-package actors.workflow.steps.newstack
+package actors.workflow.steps
 
 import actors.WorkflowStatus.{Log, LogMessage}
-import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
-import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
+import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.tasks._
-import ASGInstancesAndLoadBalancers.{ASGAndELBResult, ASGAndELBQuery}
-import ASGSize.{ASGSizeQuery, ASGSizeResult}
-import ELBHealthyInstanceChecker.ELBInstancesHealthy
-import StackLaunchedMonitor.StackLaunchCompleted
-import StackLauncher.{LaunchStack, StackLaunched}
-import UpdateNewASGSize.{ASGDesiredSizeMet, ASGToDesiredSize}
-import FreezeASG.{ASGFrozen, FreezeASGWithName}
-import GetASGName.{ASGForStack, GetASGNameForStackName}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 import play.api.libs.json.{JsString, JsValue}
