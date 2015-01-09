@@ -1,5 +1,6 @@
-package actors.workflow.steps.stackloader
+package actors.workflow.tasks
 
+import actors.workflow.RestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
@@ -7,9 +8,9 @@ import com.amazonaws.services.s3.model.S3Object
 import org.apache.commons.io.IOUtils
 import play.api.libs.json.{JsValue, Json}
 
-class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor with ActorLogging {
+class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor with RestartableActor with ActorLogging {
 
-  import actors.workflow.steps.stackloader.StackLoader._
+  import actors.workflow.tasks.StackLoader._
 
   override def receive: Receive = {
     case msg: LoadStack =>
@@ -17,7 +18,7 @@ class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor
       val stackObject: S3Object = s3Client.getObject(bucketName, s"chadash-asg-stacks/${msg.env}/${msg.stackName}.json")
       val stackFileJson = Json.parse(IOUtils.toByteArray(stackObject.getObjectContent))
 
-      context.sender() !  StackLoaded(stackFileJson)
+      context.sender() ! StackLoaded(stackFileJson)
   }
 }
 

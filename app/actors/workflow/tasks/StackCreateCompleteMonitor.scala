@@ -1,6 +1,7 @@
-package actors.workflow.steps.newstack
+package actors.workflow.tasks
 
 import actors.WorkflowStatus.LogMessage
+import actors.workflow.RestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
@@ -11,9 +12,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 
-class StackLaunchedMonitor(credentials: AWSCredentials, stackName: String) extends Actor with ActorLogging {
+class StackCreateCompleteMonitor(credentials: AWSCredentials, stackName: String) extends Actor with RestartableActor with ActorLogging {
 
-  import actors.workflow.steps.newstack.StackLaunchedMonitor._
+  import actors.workflow.tasks.StackCreateCompleteMonitor._
 
   override def preStart() = scheduleTick()
 
@@ -28,10 +29,10 @@ class StackLaunchedMonitor(credentials: AWSCredentials, stackName: String) exten
       val awsClient = new AmazonCloudFormationClient(credentials)
       val stackInfo = awsClient.describeStacks(stackFilter).getStacks.asScala.toSeq(0)
       stackInfo.getStackStatus match {
-        case "CREATE_COMPLETE" => context.parent ! StackLaunchCompleted(stackName)
+        case "CREATE_COMPLETE" => context.sender() ! StackCreateCompleted(stackName)
         case "CREATE_FAILED" => throw new Exception("Failed to create the new stack!")
         case "CREATE_IN_PROGRESS" =>
-          context.parent ! LogMessage(s"$stackName has not yet reached CREATE_COMPLETE status")
+          context.sender() ! LogMessage(s"$stackName has not yet reached CREATE_COMPLETE status")
           scheduleTick()
         case _ => throw new Exception("unhandled stack status type")
       }
@@ -40,12 +41,12 @@ class StackLaunchedMonitor(credentials: AWSCredentials, stackName: String) exten
   def scheduleTick() = context.system.scheduler.scheduleOnce(5.seconds, self, Tick)
 }
 
-object StackLaunchedMonitor {
+object StackCreateCompleteMonitor {
 
   case object Tick
 
-  case class StackLaunchCompleted(stackName: String)
+  case class StackCreateCompleted(stackName: String)
 
-  def props(credentials: AWSCredentials, stackName: String): Props = Props(new StackLaunchedMonitor(credentials, stackName))
+  def props(credentials: AWSCredentials, stackName: String): Props = Props(new StackCreateCompleteMonitor(credentials, stackName))
 
 }

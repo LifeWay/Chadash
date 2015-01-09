@@ -3,15 +3,15 @@ package actors.workflow.steps.newstack
 import actors.WorkflowStatus.{Log, LogMessage}
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFinished}
 import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
-import actors.workflow.steps.newstack.ASGInstancesAndLoadBalancers.{ASGAndELBResult, ASGAndELBQuery}
-import actors.workflow.steps.newstack.ASGSize.{ASGSizeQuery, ASGSizeResult}
-import actors.workflow.steps.newstack.ELBHealthyInstanceChecker.ELBInstancesHealthy
-import actors.workflow.steps.newstack.StackLaunchedMonitor.StackLaunchCompleted
-import actors.workflow.steps.newstack.StackLauncher.{LaunchStack, StackLaunched}
-import actors.workflow.steps.newstack.UpdateNewASGSize.{ASGDesiredSizeMet, ASGToDesiredSize}
-import actors.workflow.steps.validateandfreeze.FreezeASG.{ASGFrozen, FreezeASGWithName}
-import actors.workflow.steps.validateandfreeze.GetASGName.{ASGForStack, GetASGNameForStackName}
-import actors.workflow.steps.validateandfreeze.{FreezeASG, GetASGName}
+import actors.workflow.tasks._
+import ASGInstancesAndLoadBalancers.{ASGAndELBResult, ASGAndELBQuery}
+import ASGSize.{ASGSizeQuery, ASGSizeResult}
+import ELBHealthyInstanceChecker.ELBInstancesHealthy
+import StackLaunchedMonitor.StackLaunchCompleted
+import StackLauncher.{LaunchStack, StackLaunched}
+import UpdateNewASGSize.{ASGDesiredSizeMet, ASGToDesiredSize}
+import FreezeASG.{ASGFrozen, FreezeASGWithName}
+import GetASGName.{ASGForStack, GetASGNameForStackName}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 import play.api.libs.json.{JsString, JsValue}

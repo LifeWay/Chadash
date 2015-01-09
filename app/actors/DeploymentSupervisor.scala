@@ -1,12 +1,11 @@
 package actors
 
 import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus}
-import actors.workflow.aws.AWSWorkflow
-import actors.workflow.aws.AWSWorkflow.DeployCompleted
+import actors.workflow.aws.WorkflowManager
+import actors.workflow.aws.WorkflowManager.DeployCompleted
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
-import com.typesafe.config.ConfigFactory
-import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
+import play.api.libs.json.{JsString, JsValue, Json}
 
 /**
  * The deployment supervisor is responsible for the mgmt of the actor hierarchies on a per stackname
@@ -36,9 +35,10 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       )
 
       context.child(actorName) match {
-        case Some(x) => x forward deploy
+        case Some(x) =>
+          sender ! WorkflowInProgress
         case None => {
-          val workflowActor = context.actorOf(Props[AWSWorkflow], actorName)
+          val workflowActor = context.actorOf(Props[WorkflowManager], actorName)
           context.watch(workflowActor)
           workflowActor forward deploy
         }

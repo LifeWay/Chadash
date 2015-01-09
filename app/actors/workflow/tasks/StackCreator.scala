@@ -1,17 +1,18 @@
-package actors.workflow.steps.newstack
+package actors.workflow.tasks
 
+import actors.workflow.RestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
 
-class StackLauncher(credentials: AWSCredentials) extends Actor with ActorLogging {
+class StackCreator(credentials: AWSCredentials) extends Actor with RestartableActor with ActorLogging {
 
-  import actors.workflow.steps.newstack.StackLauncher._
+  import actors.workflow.tasks.StackCreator._
 
   override def receive: Receive = {
-    case launchCommand: LaunchStack =>
+    case launchCommand: StackCreateCommand =>
 
       val stackNameWithVersion = s"${launchCommand.stackName}-v${launchCommand.version}"
       val updatedStackName = stackNamePattern.replaceAllIn(stackNameWithVersion, "-")
@@ -36,19 +37,19 @@ class StackLauncher(credentials: AWSCredentials) extends Actor with ActorLogging
 
 
       val awsClient = new AmazonCloudFormationClient(credentials)
-      val result = awsClient.createStack(createStackRequest)
+      awsClient.createStack(createStackRequest)
 
-      context.parent ! StackLaunched(updatedStackName, result.getStackId)
+      context.sender() ! StackCreateRequestCompleted(updatedStackName)
   }
 }
 
-object StackLauncher {
+object StackCreator {
 
-  case class LaunchStack(stackName: String, imageId: String, version: String, stackData: JsValue)
+  case class StackCreateCommand(stackName: String, imageId: String, version: String, stackData: JsValue)
 
-  case class StackLaunched(stackName: String, stackId: String)
+  case class StackCreateRequestCompleted(stackName: String)
 
-  def props(credentials: AWSCredentials): Props = Props(new StackLauncher(credentials))
+  def props(credentials: AWSCredentials): Props = Props(new StackCreator(credentials))
 
   val stackNamePattern = "[^\\w-]".r
 }

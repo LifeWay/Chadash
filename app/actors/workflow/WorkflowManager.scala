@@ -24,9 +24,9 @@ import utils.Constants
  * 5. Further steps may have a configuration that requests that return data from a given step as defined in the config
  *
  */
-class AWSWorkflow extends Actor with ActorLogging {
+class WorkflowManager extends Actor with ActorLogging {
 
-  import actors.workflow.aws.AWSWorkflow._
+  import actors.workflow.aws.WorkflowManager._
   import context._
 
   var deploy: Deploy = null
@@ -40,7 +40,6 @@ class AWSWorkflow extends Actor with ActorLogging {
   var stepResultData = Map.empty[String, Option[JsValue]]
 
   override def receive: Receive = {
-
     case deployMsg: Deploy =>
       deploy = deployMsg
       val appConfig = ConfigFactory.load()
@@ -57,9 +56,6 @@ class AWSWorkflow extends Actor with ActorLogging {
 
 
   def workflowProcessing: Receive = {
-    case x: Deploy =>
-      sender() ! DeployInProgress
-
     case Start =>
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
@@ -115,7 +111,7 @@ class AWSWorkflow extends Actor with ActorLogging {
   }
 }
 
-object AWSWorkflow {
+object WorkflowManager {
 
   case class StartStep(env: String, appVersion: String, stackAmi: String, stackName: String, data: Map[String, Option[JsValue]])
 
@@ -124,8 +120,6 @@ object AWSWorkflow {
   case class StepFailed(reason: String)
 
   case object Start
-
-  case object DeployInProgress
 
   case object DeployCompleted
 

@@ -3,9 +3,10 @@ package actors.workflow.steps.validateandfreeze
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.aws.AWSWorkflow.{StartStep, StepFailed, StepFinished}
 import actors.workflow.aws.{AWSSupervisorStrategy, AWSWorkflow}
-import actors.workflow.steps.validateandfreeze.FreezeASG.{ASGFrozen, FreezeASGWithName}
-import actors.workflow.steps.validateandfreeze.GetASGName.{ASGForStack, GetASGNameForStackName}
-import actors.workflow.steps.validateandfreeze.StackList.{FilteredStacks, ListNonDeletedStacksStartingWithName}
+import actors.workflow.tasks.{StackList, GetASGName, FreezeASG}
+import FreezeASG.{ASGFrozen, FreezeASGWithName}
+import GetASGName.{ASGForStack, GetASGNameForStackName}
+import StackList.{FilteredStacks, ListNonDeletedStacksStartingWithName}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 import play.api.libs.json.Json
