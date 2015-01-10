@@ -26,7 +26,7 @@ class StackASGName(credentials: AWSCredentials) extends Actor with RestartableAc
           val stackOutputs = stacksResults.seq(0).getOutputs.asScala.toSeq
           val asgOutput = stackOutputs.filter(p => p.getOutputKey.equals("ChadashASG"))
           asgOutput.length match {
-            case 1 => context.sender() ! StackASGNameReponse(asgOutput(0).getOutputValue)
+            case 1 => context.sender() ! StackASGNameResponse(asgOutput(0).getOutputValue)
             case _ => throw new UnsupportedOperationException("missing ChadashASG output")
           }
         case _ => throw new UnsupportedOperationException("expected only one stack!")
@@ -38,7 +38,7 @@ object StackASGName {
 
   case class StackASGNameQuery(stackName: String)
 
-  case class StackASGNameReponse(asgName: String)
+  case class StackASGNameResponse(asgName: String)
 
   def props(credentials: AWSCredentials): Props = Props(new StackASGName(credentials))
 }

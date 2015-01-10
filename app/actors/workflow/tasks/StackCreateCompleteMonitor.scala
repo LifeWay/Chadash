@@ -29,10 +29,10 @@ class StackCreateCompleteMonitor(credentials: AWSCredentials, stackName: String)
       val awsClient = new AmazonCloudFormationClient(credentials)
       val stackInfo = awsClient.describeStacks(stackFilter).getStacks.asScala.toSeq(0)
       stackInfo.getStackStatus match {
-        case "CREATE_COMPLETE" => context.sender() ! StackCreateCompleted(stackName)
+        case "CREATE_COMPLETE" => context.parent ! StackCreateCompleted(stackName)
         case "CREATE_FAILED" => throw new Exception("Failed to create the new stack!")
         case "CREATE_IN_PROGRESS" =>
-          context.sender() ! LogMessage(s"$stackName has not yet reached CREATE_COMPLETE status")
+          context.parent ! LogMessage(s"$stackName has not yet reached CREATE_COMPLETE status")
           scheduleTick()
         case _ => throw new Exception("unhandled stack status type")
       }

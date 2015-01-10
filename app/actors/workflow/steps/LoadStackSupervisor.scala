@@ -1,35 +1,44 @@
 package actors.workflow.steps
 
 import actors.WorkflowStatus.LogMessage
-import actors.workflow.aws.AWSSupervisorStrategy
 import actors.workflow.tasks.StackLoader
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
+import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
+import play.api.libs.json.JsValue
 
-class LoadStackSupervisor(credentials: AWSCredentials, bucketName: String) extends Actor with ActorLogging with AWSSupervisorStrategy {
+class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLogging with AWSSupervisorStrategy {
+
+  import actors.workflow.steps.LoadStackSupervisor._
+
   override def receive: Receive = {
-    case step: StartStep =>
+    case msg: LoadStackQuery =>
 
-      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, bucketName))
+      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName))
       context.watch(stackLoaderActor)
 
-      stackLoaderActor ! LoadStack(step.env, step.stackName)
+      stackLoaderActor ! LoadStack(msg.env, msg.stackName)
       context.become(stepInProcess)
   }
 
   def stepInProcess: Receive = {
     case StackLoaded(x) =>
       context.parent ! LogMessage("StackLoader: Completed")
-      context.parent ! StepFinished(Some(x))
+      context.parent ! LoadStackResponse(x)
       context.unbecome()
 
     case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! AWSWorkflow.StepFailed
+      context.parent ! WorkflowManager.StepFailed
   }
 }
 
 object LoadStackSupervisor {
-  def props(credentials: AWSCredentials, bucketName: String): Props = Props(new LoadStackSupervisor(credentials, bucketName))
+
+  case class LoadStackQuery(bucketName: String, env: String, stackName: String)
+
+  case class LoadStackResponse(stackData: JsValue)
+
+  def props(credentials: AWSCredentials): Props = Props(new LoadStackSupervisor(credentials))
 }

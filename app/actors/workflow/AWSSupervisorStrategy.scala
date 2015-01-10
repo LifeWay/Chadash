@@ -1,4 +1,4 @@
-package actors.workflow.aws
+package actors.workflow
 
 import actors.WorkflowStatus.LogMessage
 import akka.actor.SupervisorStrategy.{Restart, Stop}

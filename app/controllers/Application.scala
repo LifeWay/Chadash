@@ -30,8 +30,6 @@ package controllers
     res.fold(
       errors => Future(BadRequest(Json.obj("status" -> "Processing Error", "message" -> JsError.toFlatJson(errors)))),
       deployment => {
-        // TODO: check for authentication
-
         implicit val to = Timeout(Duration(2, "seconds"))
         val f = for (
           res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(env, stackName, deployment.version, deployment.amiId)

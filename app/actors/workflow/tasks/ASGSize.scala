@@ -28,7 +28,7 @@ class ASGSize(credentials: AWSCredentials) extends Actor with RestartableActor w
 
       val awsClient = new AmazonAutoScalingClient(credentials)
       awsClient.setDesiredCapacity(desiredCapRequest)
-      context.sender() ! ASGDesiredSizeSet(msg.asgName)
+      context.sender() ! ASGDesiredSizeSet(msg.asgName, msg.size)
   }
 }
 
@@ -40,7 +40,7 @@ object ASGSize {
 
   case class ASGSetDesiredSizeCommand(asgName: String, size: Int)
 
-  case class ASGDesiredSizeSet(asgName: String)
+  case class ASGDesiredSizeSet(asgName: String, size: Int)
 
   def props(credentials: AWSCredentials): Props = Props(new ASGSize(credentials))
 }

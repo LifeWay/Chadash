@@ -1,126 +1,133 @@
-package actors.workflow.aws
+package actors.workflow
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
-import actors.workflow.steps.{ValidateAndFreezeSupervisor, LoadStackSupervisor, NewStackSupervisor}
+import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
+import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
+import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
+import actors.workflow.steps.{LoadStackSupervisor, NewStackSupervisor, ValidateAndFreezeSupervisor}
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.ConfigFactory
-import play.api.libs.json.JsValue
-import utils.Constants
+import play.api.libs.json.Json
 
 /**
- * One AWS workflow actor will be created per deployment request. This actor's job is to read in the configuration for
- * the flow. Upon reading in the configuration the following steps shall occur:
+ * One WorkflowManager per in-process stackname / env combo.
+ * Responsible for chaining together supervisors that manage tasks to get the deployment done.
  *
- * 1. Create ActorRefs for each of the defined steps
- * 2. Setup a Sequence ordered of the ActorRefs to the order defined in the configuration.
- * 3. Start the sequence.
- * 4. Upon each step completing, any return data from that step must be stored by this actor.
- * 5. Further steps may have a configuration that requests that return data from a given step as defined in the config
+ * This actor should not call any actors directly that may crash due to amazon calls. A supervisor should
+ * be between them that can handle the restarts for those calls.
  *
  */
-class WorkflowManager extends Actor with ActorLogging {
+class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
 
-  import actors.workflow.aws.WorkflowManager._
-  import context._
+  import actors.workflow.WorkflowManager._
 
-  var deploy: Deploy = null
-  var credentials: AWSCredentials = null
-  var stackBucket: String = null
+  val statusActorName = "WorkFlowStatus"
+  val appConfig = ConfigFactory.load()
+  val stackBucket = appConfig.getString("chadash.stack-bucket")
 
-  //STEPS
-  val stepSequence: Seq[String] = Seq("loadStackFile", "validateAndFreeze", "newStack")
-  var currentStep = 0
-  var steps = Seq.empty[ActorRef]
-  var stepResultData = Map.empty[String, Option[JsValue]]
+  var workflowStepData = Map.empty[String, String]
+  var awsCreds: AWSCredentials = null
 
-  override def receive: Receive = {
-    case deployMsg: Deploy =>
-      deploy = deployMsg
-      val appConfig = ConfigFactory.load()
-      stackBucket = appConfig.getString("chadash.stack-bucket")
-
-      val workflowStatus = context.actorOf(WorkflowStatus.props(5), utils.Constants.statusActorName)
-      context.watch(workflowStatus)
-
-      workflowStatus ! LogMessage("Starting deployment workflow...")
-      sender() ! StartingWorkflow
-      become(workflowProcessing)
-      self ! Start
+  /**
+   * Start up the status actor before we start processing anything.
+   */
+  override def preStart(): Unit = {
+    val workflowStatus = context.actorOf(WorkflowStatus.props(5), statusActorName)
+    context.watch(workflowStatus)
   }
 
-
-  def workflowProcessing: Receive = {
-    case Start =>
+  override def receive: Receive = {
+    case StartDeploy =>
+      sender() ! DeployStarted
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
+      context.become(inProcess())
+  }
 
-    case x: CurrentCredentials =>
+  def inProcess(): Receive = {
+    case msg: CurrentCredentials =>
       context.unwatch(sender())
-      credentials = x.credentials
-      steps = stepSequence.foldLeft(Seq.empty[ActorRef])((x, i) => x :+ actorLoader(i, stackBucket))
+      awsCreds = msg.credentials
 
-      steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.amiId, deploy.stackName, stepResultData)
+      val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(awsCreds), "loadStackSupervisor")
+      context.watch(loadStackSupervisor)
+      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.env, deploy.stackName)
 
-    case x: StepFinished =>
-      stepResultData = stepResultData + (stepSequence(currentStep) -> x.stepData)
-      logMessage(s"Step Completed: ${stepSequence(currentStep)}")
+    case msg: LoadStackResponse =>
+      workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
+      val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
+      context.watch(validateAndFreezeSupervisor)
+      validateAndFreezeSupervisor ! VerifyAndFreezeOldStack(deploy.stackName)
 
-      currentStep = currentStep + 1
-      steps.size == currentStep match {
-        case true => parent ! DeployCompleted
-        case false =>
-          logMessage(s"Starting Step: ${stepSequence(currentStep)}")
-          steps(currentStep) ! StartStep(deploy.env, deploy.appVersion, deploy.amiId, deploy.stackName, stepResultData)
+    case NoOldStackExists =>
+      context.unwatch(sender())
+      context.stop(sender())
+
+      val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
+      context.watch(stackLauncher)
+      workflowStepData.get("stackFileContents") match {
+        case Some(stackFile) => stackLauncher ! FirstStackLaunch(deploy.stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
+        case None => throw new Exception("No stack contents found when attempting to deploy")
       }
 
-    case x: Log =>
-      logMessage(x.message)
+    case msg: VerifiedAndStackFrozen =>
+      context.unwatch(sender())
+      context.stop(sender())
+
+      val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
+      context.watch(stackLauncher)
+      workflowStepData.get("stackFileContents") match {
+        case Some(stackFile) => stackLauncher ! StackUpgradeLaunch(deploy.stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
+        case None => throw new Exception("No stack contents found when attempting to deploy")
+      }
+
+    case msg: FirstStackLaunchCompleted =>
+      context.unwatch(sender())
+      context.stop(sender())
+      logMessage(s"The first version of this stack has been successfully deployed. Stack Name: ${msg.newStackName}")
+      context.parent ! DeployCompleted
+
+    case msg: StackUpgradeLaunchCompleted =>
+      //TODO: schedule tear down of old and unfreezing of new.
+      log.debug("TODO... tear down old, and unfreeze")
+
+    case msg: Log =>
+      logMessage(msg.message)
+
+    case msg: StepFailed =>
+      logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
+      context.parent ! DeploymentSupervisor.DeployFailed
 
     case Terminated(actorRef) =>
       logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      parent ! DeploymentSupervisor.DeployFailed
+      context.parent ! DeploymentSupervisor.DeployFailed
 
-    case msg: StepFailed =>
-      //Step Supervisors should be able to heal themselves if they are able. If we receive a step failed, the whole job fails and needs a human.
-      logMessage(s"The following step has failed: ${stepSequence(currentStep)}} for the following reason: ${msg.reason}")
-      parent ! DeploymentSupervisor.DeployFailed
-
-    case m: Any =>
-      log.debug("Unhandled message type received: " + m.toString)
+    case msg: Any =>
+      log.debug("Unhandled message type received: " + msg.toString)
   }
 
-  def logMessage(message: String) =  {
-    context.child(Constants.statusActorName) match {
+  def logMessage(message: String) = {
+    context.child(statusActorName) match {
       case Some(actor) => actor ! LogMessage(message)
       case None => log.error(s"Unable to find logging status actor to send log message to. This is an error. Message that would have been delivered: ${message}")
-    }
-  }
-
-  def actorLoader(configName: String, stackBucket: String): ActorRef = {
-    configName match {
-      case "loadStackFile" => context.actorOf(LoadStackSupervisor.props(credentials, stackBucket), "loadStackFile")
-      case "validateAndFreeze" => context.actorOf(ValidateAndFreezeSupervisor.props(credentials), "validateAndFreeze")
-      case "newStack" => context.actorOf(NewStackSupervisor.props(credentials), "newStack")
     }
   }
 }
 
 object WorkflowManager {
 
-  case class StartStep(env: String, appVersion: String, stackAmi: String, stackName: String, data: Map[String, Option[JsValue]])
-
-  case class StepFinished(stepData: Option[JsValue])
-
   case class StepFailed(reason: String)
 
-  case object Start
+  case object StartDeploy
+
+  case object DeployStarted
 
   case object DeployCompleted
 
-  case object StartingWorkflow
+  def props(deploy: Deploy): Props = Props(new WorkflowManager(deploy: Deploy))
 
 }
