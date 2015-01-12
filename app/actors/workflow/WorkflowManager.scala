@@ -5,8 +5,9 @@ import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{Log, LogMessage}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
+import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
-import actors.workflow.steps.{LoadStackSupervisor, NewStackSupervisor, ValidateAndFreezeSupervisor}
+import actors.workflow.steps.{TearDownSupervisor, LoadStackSupervisor, NewStackSupervisor, ValidateAndFreezeSupervisor}
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
@@ -78,6 +79,7 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
       context.unwatch(sender())
       context.stop(sender())
 
+      workflowStepData = workflowStepData + ("oldStackName" -> msg.oldStackName)
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)
       workflowStepData.get("stackFileContents") match {
@@ -92,8 +94,24 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
       context.parent ! DeployCompleted
 
     case msg: StackUpgradeLaunchCompleted =>
-      //TODO: schedule tear down of old and unfreezing of new.
-      log.debug("TODO... tear down old, and unfreeze")
+      context.unwatch(sender())
+      context.stop(sender())
+      logMessage(s"The next version of the stack has been successfully deployed.")
+
+      val tearDownSupervisor = context.actorOf(TearDownSupervisor.props(awsCreds), "tearDownSupervisor")
+      context.watch(tearDownSupervisor)
+
+      workflowStepData.get("oldStackName") match {
+        case Some(oldStackName) => tearDownSupervisor ! StartTearDown(oldStackName, msg.newAsgName)
+        case None => throw new Exception("No old stack name found when attempting to tear down old stack")
+      }
+
+    case TearDownFinished =>
+      context.unwatch(sender())
+
+      logMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
+      logMessage("Deploy complete")
+      context.parent ! DeployCompleted
 
     case msg: Log =>
       logMessage(msg.message)

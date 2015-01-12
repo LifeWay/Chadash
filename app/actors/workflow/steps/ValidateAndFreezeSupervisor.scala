@@ -3,9 +3,9 @@ package actors.workflow.steps
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.WorkflowManager.StepFailed
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
-import actors.workflow.tasks.StackASGName.{StackASGNameQuery, StackASGNameResponse}
+import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}
 import actors.workflow.tasks.StackList.{FilteredStacks, ListNonDeletedStacksStartingWithName}
-import actors.workflow.tasks.{FreezeASG, StackASGName, StackList}
+import actors.workflow.tasks.{StackInfo, FreezeASG, StackList}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
@@ -40,7 +40,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends Actor wit
 
         case 1 =>
           context.parent ! LogMessage(s"One running stack found, querying for the ASG name")
-          val asgFetcher = context.actorOf(StackASGName.props(credentials), "getASGName")
+          val asgFetcher = context.actorOf(StackInfo.props(credentials), "getASGName")
           context.watch(asgFetcher)
           val stack = msg.stackList(0)
           oldStackName = Some(stack)

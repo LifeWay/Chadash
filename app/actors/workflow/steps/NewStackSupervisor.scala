@@ -4,7 +4,7 @@ import actors.WorkflowStatus.{Log, LogMessage}
 import actors.workflow.steps.HealthyInstanceSupervisor.{HealthStatusMet, MonitorASGForELBHealth}
 import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
-import actors.workflow.tasks.StackASGName.{StackASGNameQuery, StackASGNameResponse}
+import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}
 import actors.workflow.tasks.StackCreateCompleteMonitor.StackCreateCompleted
 import actors.workflow.tasks.StackCreator.{StackCreateCommand, StackCreateRequestCompleted}
 import actors.workflow.tasks._
@@ -63,7 +63,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
       context.parent ! LogMessage(s"New stack has reached CREATE_COMPLETE status. ${msg.stackName}")
       oldStackName match {
         case Some(oldStack) =>
-          val asgFetcher = context.actorOf(StackASGName.props(credentials), "getASGName")
+          val asgFetcher = context.actorOf(StackInfo.props(credentials), "getASGName")
           context.watch(asgFetcher)
           asgFetcher ! StackASGNameQuery(msg.stackName)
 
