@@ -2,7 +2,7 @@ package actors.workflow
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
-import actors.WorkflowStatus.{Log, LogMessage}
+import actors.WorkflowStatus.{DeployStatusSubscribeRequest, Log, LogMessage}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
@@ -112,6 +112,9 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
       logMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
       logMessage("Deploy complete")
       context.parent ! DeployCompleted
+
+    case msg: DeployStatusSubscribeRequest =>
+      context.child(statusActorName).get forward msg
 
     case msg: Log =>
       logMessage(msg.message)
