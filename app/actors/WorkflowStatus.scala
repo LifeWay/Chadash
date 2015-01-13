@@ -1,7 +1,7 @@
 package actors
 
 import actors.workflow.aws.WorkflowStatusWebSocket.MessageToClient
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor._
 
 /**
  * This actor is intended to be created by your workflow supervisor. Your supervisor will manage this as one of its
@@ -31,8 +31,12 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
     case DeployStatusSubscribeConfirm =>
       subscribers = subscribers :+ sender()
+      context.watch(sender())
       logs.map(x => sender() ! MessageToClient(x))
 
+    case Terminated(actorRef) =>
+      context.unwatch(actorRef)
+      subscribers = subscribers.filter(p => !p.equals(actorRef))
   }
 
   def logger(msg: String): Unit = {
