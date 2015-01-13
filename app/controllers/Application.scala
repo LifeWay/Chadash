@@ -30,8 +30,6 @@ object Application extends Controller {
   def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { implicit request =>
     Authentication.checkAuth(stackName) { userId =>
       Logger.info(s"User: $userId is requesting to deploy stack: $stackName.")
-
-      Future.successful(Ok("Word"))
       val res = request.body.validate[Deployment]
       res.fold(
         errors => Future(BadRequest(Json.obj("status" -> "Processing Error", "message" -> JsError.toFlatJson(errors)))),
