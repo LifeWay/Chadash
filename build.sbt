@@ -2,7 +2,7 @@ import play.PlayImport._
 import play.PlayScala
 import sbtbuildinfo.Plugin._
 
-name := """Chadash"""
+name := "chadash"
 version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
 scalaVersion := "2.11.4"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
