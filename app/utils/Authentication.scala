@@ -10,30 +10,25 @@ import play.api.{Configuration, Logger, Play}
 import scala.concurrent.Future
 
 object Authentication {
-  def checkAuth(env: String, stackName: String)(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse())(implicit request: Request[Any]): Future[Result] = {
+  def checkAuth(stackName: String)(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse())(implicit request: Request[Any]): Future[Result] = {
     val basicAuthUser = getUser(request)
     basicAuthUser match {
-      case Some(user) => checkUserRoute(callback, notAuthResponse, user._1, user._2, env, stackName)
+      case Some(user) => checkUserRoute(callback, notAuthResponse, user._1, user._2, stackName)
       case None => Future.successful(notAuthResponse)
     }
   }
 
-  def checkUserRoute(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse(), user: String, pw: String, env: String, stack: String): Future[Result] = {
+  def checkUserRoute(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse(), user: String, pw: String, stack: String): Future[Result] = {
     val authConfig = Play.configuration.getConfig("auth")
     authConfig match {
-      case Some(authConfig) =>
-        authConfig.getConfig(user) match {
+      case Some(ac) =>
+        ac.getConfig(user) match {
           case Some(userPerms) =>
             userAuth(userPerms, user, pw) match {
               case true =>
-                val adminUser = adminStatus(userPerms)
-                adminUser match {
+                stackAuth(userPerms, stack) match {
                   case true => callback(user)
-                  case false =>
-                    stackAuth(userPerms, env, stack) match {
-                      case true => callback(user)
-                      case false => Future.successful(notAuthResponse)
-                    }
+                  case false => Future.successful(notAuthResponse)
                 }
               case false => Future.successful(notAuthResponse)
             }
@@ -46,16 +41,9 @@ object Authentication {
     }
   }
 
-  def stackAuth(userPerms: Configuration, env: String, stackName: String): Boolean = {
-    userPerms.getStringList(env) match {
+  def stackAuth(userPerms: Configuration, stackName: String): Boolean = {
+    userPerms.getStringList("stacks") match {
       case Some(list) => list.contains("*") || list.contains(stackName)
-      case None => false
-    }
-  }
-
-  def adminStatus(userPerms: Configuration): Boolean = {
-    userPerms.getBoolean("isAdmin") match {
-      case Some(admin) => admin
       case None => false
     }
   }

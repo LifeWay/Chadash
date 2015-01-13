@@ -1,6 +1,6 @@
 package controllers
 
-import actors.DeploymentSupervisor.NoWorkflow
+import actors.DeploymentSupervisor.{WorkflowInProgress, NoWorkflow}
 import actors.WorkflowStatus.SubscribeToMe
 import actors.workflow.aws.WorkflowStatusWebSocket
 import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus}
@@ -27,9 +27,9 @@ object Application extends Controller {
     Ok("Welcome to Chadash. The immutable Cloud Deployer!")
   }
 
-  def deploy(env: String, stackName: String) = Action.async(BodyParsers.parse.json) { implicit request =>
-    Authentication.checkAuth(env, stackName) { userId =>
-      Logger.info(s"User: $userId is requesting to deploy stack: $stackName in the $env environment.")
+  def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { implicit request =>
+    Authentication.checkAuth(stackName) { userId =>
+      Logger.info(s"User: $userId is requesting to deploy stack: $stackName.")
 
       Future.successful(Ok("Word"))
       val res = request.body.validate[Deployment]
@@ -38,20 +38,23 @@ object Application extends Controller {
         deployment => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(env, stackName, deployment.version, deployment.amiId)
+            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackName, deployment.version, deployment.amiId)
           ) yield res
 
-          f.map(x => Ok(s"$x"))
+          f.map {
+            case x @ WorkflowInProgress => Forbidden(s"$x")
+            case x @ _ => Ok(s"$x")
+          }
         }
       )
     }
   }
 
-  def statusSocket(env: String, appName: String) = {
+  def statusSocket(appName: String) = {
     WebSocket.tryAcceptWithActor[String, String] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
       val f = for (
-        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(env, appName)
+        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(appName)
       ) yield res
 
       f.map {

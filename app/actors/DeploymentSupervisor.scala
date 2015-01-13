@@ -26,7 +26,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case deploy: Deploy =>
-      val actorName = s"workflow-${deploy.env}-${deploy.stackName}"
+      val actorName = s"workflow-${deploy.stackName}"
       context.child(actorName) match {
         case Some(x) =>
           sender ! WorkflowInProgress
@@ -38,14 +38,14 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       }
 
     case status: DeployStatusQuery =>
-      val actorName = s"workflow-${status.env}-${status.stackName}"
+      val actorName = s"workflow-${status.stackName}"
       context.child(actorName) match {
         case Some(x) => x ! GetStatus
         case None => sender() ! NoWorkflow
       }
 
     case subscribe: DeployStatusSubscribeRequest =>
-      val actorName = s"workflow-${subscribe.env}-${subscribe.stackName}"
+      val actorName = s"workflow-${subscribe.stackName}"
       context.child(actorName) match {
         case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
@@ -68,9 +68,9 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
 object DeploymentSupervisor {
 
-  case class Deploy(env: String, stackName: String, appVersion: String, amiId: String)
+  case class Deploy(stackName: String, appVersion: String, amiId: String)
 
-  case class DeployStatusQuery(env: String, stackName: String)
+  case class DeployStatusQuery(stackName: String)
 
   case class DeployWorkflow(workflowActor: ActorRef)
 

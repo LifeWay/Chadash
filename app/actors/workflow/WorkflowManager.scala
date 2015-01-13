@@ -56,7 +56,7 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
 
       val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(awsCreds), "loadStackSupervisor")
       context.watch(loadStackSupervisor)
-      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.env, deploy.stackName)
+      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.stackName)
 
     case msg: LoadStackResponse =>
       workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
