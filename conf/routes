@@ -4,7 +4,6 @@
 
 GET         /                                              controllers.Application.index
 POST        /api/deploy/:env/:stackName                      controllers.Application.deploy(env: String, stackName:String)
-GET         /api/deploy/status/:env/:stackName               controllers.Application.status(env: String, stackName:String)
 GET         /api/deploy/status-events/:env/:stackName        controllers.Application.statusSocket(env: String, stackName:String)
 
 GET         /system-info/version                           controllers.Application.buildInfo
