@@ -1,13 +1,13 @@
 package actors.workflow.tasks
 
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
 
-class StackCreator(credentials: AWSCredentials) extends Actor with RestartableActor with ActorLogging {
+class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.StackCreator._
 

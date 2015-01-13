@@ -1,7 +1,7 @@
 package actors.workflow.tasks
 
 import actors.WorkflowStatus.LogMessage
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Props, ActorLogging, Actor}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class StackDeleteCompleteMonitor(credentials: AWSCredentials, stackId: String, stackName: String) extends Actor with RestartableActor with ActorLogging {
+class StackDeleteCompleteMonitor(credentials: AWSCredentials, stackId: String, stackName: String) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.StackDeleteCompleteMonitor._
 

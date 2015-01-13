@@ -1,6 +1,6 @@
 package actors.workflow.tasks
 
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
@@ -8,7 +8,7 @@ import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 
 import scala.collection.JavaConverters._
 
-class ASGInfo(credentials: AWSCredentials) extends Actor with RestartableActor with ActorLogging {
+class ASGInfo(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.ASGInfo._
 

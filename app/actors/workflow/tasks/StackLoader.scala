@@ -1,6 +1,6 @@
 package actors.workflow.tasks
 
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.s3.AmazonS3Client
@@ -8,7 +8,7 @@ import com.amazonaws.services.s3.model.S3Object
 import org.apache.commons.io.IOUtils
 import play.api.libs.json.{JsValue, Json}
 
-class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor with RestartableActor with ActorLogging {
+class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.StackLoader._
 

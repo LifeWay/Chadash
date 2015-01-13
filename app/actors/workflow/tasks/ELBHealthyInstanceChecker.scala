@@ -1,6 +1,6 @@
 package actors.workflow.tasks
 
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
@@ -8,7 +8,7 @@ import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealth
 
 import scala.collection.JavaConverters._
 
-class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends Actor with RestartableActor with ActorLogging {
+class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.ELBHealthyInstanceChecker._
 

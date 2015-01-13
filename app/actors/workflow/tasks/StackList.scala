@@ -1,6 +1,6 @@
 package actors.workflow.tasks
 
-import actors.workflow.RestartableActor
+import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
@@ -8,7 +8,7 @@ import com.amazonaws.services.cloudformation.model.ListStacksRequest
 
 import scala.collection.JavaConverters._
 
-class StackList(credentials: AWSCredentials) extends Actor with RestartableActor with ActorLogging {
+class StackList(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
 
   import actors.workflow.tasks.StackList._
 
