@@ -1,17 +1,15 @@
 package actors.workflow.steps
 
-import java.util.UUID
-
 import actors.WorkflowStatus.LogMessage
 import actors.workflow.AWSSupervisorStrategy
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
 import actors.workflow.tasks.ELBHealthyInstanceChecker.{ELBInstanceListAllHealthy, ELBInstanceListNotHealthy, ELBIsInstanceListHealthy}
 import actors.workflow.tasks.{ASGInfo, ELBHealthyInstanceChecker}
-import akka.actor.{Terminated, Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: Int, asgName: String) extends Actor with ActorLogging with AWSSupervisorStrategy {
 
@@ -25,7 +23,6 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
     case MonitorASGForELBHealth =>
       val asgInfo = context.actorOf(ASGInfo.props(credentials), "asgInfo")
       context.watch(asgInfo)
-      context.parent ! LogMessage("Getting ASG Info...")
       asgInfo ! ASGInServiceInstancesAndELBSQuery(asgName)
       context.become(inProcess())
   }
@@ -52,7 +49,7 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
       unhealthyElbs = unhealthyElbs + 1
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"An ELB still has ${msg.unhealthyInstances} unhealthy instances")
+      context.parent ! LogMessage(s"${msg.unhealthyInstances} unhealthy instances still exist on ELB: ${msg.elbName}")
       checkAndMaybeRestart()
 
     case ELBInstanceListAllHealthy =>

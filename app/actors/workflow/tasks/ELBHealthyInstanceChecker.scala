@@ -26,7 +26,7 @@ class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends Actor with 
 
       unhealthyInstances.size match {
         case i if i > 0 =>
-          context.sender() ! ELBInstanceListNotHealthy(i)
+          context.sender() ! ELBInstanceListNotHealthy(i, msg.elbName)
         case i if i == 0 =>
           context.sender() ! ELBInstanceListAllHealthy
       }
@@ -37,7 +37,7 @@ object ELBHealthyInstanceChecker {
 
   case class ELBIsInstanceListHealthy(elbName: String, instances: Seq[String])
 
-  case class ELBInstanceListNotHealthy(unhealthyInstances: Int)
+  case class ELBInstanceListNotHealthy(unhealthyInstances: Int, elbName: String)
 
   case object ELBInstanceListAllHealthy
 

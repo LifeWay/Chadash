@@ -60,6 +60,7 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
 
     case msg: LoadStackResponse =>
       workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
+      logMessage("Stack JSON data loaded. Querying for existing stack")
       val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
       validateAndFreezeSupervisor ! VerifyAndFreezeOldStack(deploy.stackName)
@@ -67,6 +68,7 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
     case NoOldStackExists =>
       context.unwatch(sender())
       context.stop(sender())
+      logMessage("No existing stacks found. First-time stack launch")
 
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)

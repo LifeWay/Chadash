@@ -14,7 +14,6 @@ class StackInfo(credentials: AWSCredentials) extends Actor with RestartableActor
 
   override def receive: Receive = {
     case query: StackASGNameQuery =>
-
       val describeStackRequest = new DescribeStacksRequest()
         .withStackName(query.stackName)
 
@@ -33,7 +32,6 @@ class StackInfo(credentials: AWSCredentials) extends Actor with RestartableActor
       }
 
     case msg: StackIdQuery =>
-
       val describeStacksRequest = new DescribeStacksRequest()
         .withStackName(msg.stackName)
 

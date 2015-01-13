@@ -24,7 +24,6 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorL
 
   def stepInProcess: Receive = {
     case StackLoaded(x) =>
-      context.parent ! LogMessage("StackLoader: Completed")
       context.parent ! LoadStackResponse(x)
       context.unbecome()
 

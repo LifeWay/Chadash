@@ -32,14 +32,13 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends Actor wit
 
       msg.stackList.length match {
         case i if i > 1 =>
-          context.parent ! StepFailed(s"Error: More than one active version of this stack is running")
+          context.parent ! StepFailed("Error: More than one active version of this stack is running")
 
         case 0 =>
-          context.parent ! LogMessage(s"No previous stack found, this is the first deployment of this stack.")
           context.parent ! NoOldStackExists
 
         case 1 =>
-          context.parent ! LogMessage(s"One running stack found, querying for the ASG name")
+          context.parent ! LogMessage("One running stack found, querying for the ASG name")
           val asgFetcher = context.actorOf(StackInfo.props(credentials), "getASGName")
           context.watch(asgFetcher)
           val stack = msg.stackList(0)
@@ -50,7 +49,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends Actor wit
     case msg: StackASGNameResponse =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"ASG found, Requesting to suspend scaling activities ${msg.asgName}")
+      context.parent ! LogMessage(s"ASG found, Requesting to suspend scaling activities for ASG: ${msg.asgName}")
 
       val asgFreezer = context.actorOf(FreezeASG.props(credentials), "freezeASG")
       context.watch(asgFreezer)
@@ -59,7 +58,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends Actor wit
     case msg: FreezeASGCompleted =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"ASG ${msg.asgName} has been frozen for deployment")
+      context.parent ! LogMessage(s"ASG ${msg.asgName} alarm and scheduled based autoscaling has been frozen for deployment")
 
       oldStackName match {
         case Some(stack) => context.parent ! VerifiedAndStackFrozen(stack, msg.asgName)

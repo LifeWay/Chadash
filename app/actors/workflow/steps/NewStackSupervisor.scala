@@ -99,13 +99,12 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
       context.unwatch(sender())
       context.stop(sender())
 
-      context.parent ! LogMessage(s"Old ASG desired instances: ${msg.size}")
+      context.parent ! LogMessage(s"Old ASG desired instances: ${msg.size}, setting new ASG to ${msg.size} desired instances")
 
       newAsgName match {
         case Some(newAsg) =>
           val resizeASG = context.actorOf(ASGSize.props(credentials), "asgResize")
           context.watch(resizeASG)
-          context.parent ! LogMessage(s"Setting new ASG to ${msg.size} desired instances")
           resizeASG ! ASGSetDesiredSizeCommand(newAsg, msg.size)
 
         case None => throw new Exception("New ASG Name was set, this should not have been possible...")
@@ -115,8 +114,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
       context.unwatch(sender())
       context.stop(sender())
 
-      context.parent ! LogMessage(s"ASG Desired size has been set. ASG: ${msg.asgName}")
-      context.parent ! LogMessage(s"Querying ASG for ELB list and attached instance IDs")
+      context.parent ! LogMessage(s"ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
 
       val asgELBDetailQuery = context.actorOf(HealthyInstanceSupervisor.props(credentials, msg.size, msg.asgName), "healthyInstanceSupervisor")
       context.watch(asgELBDetailQuery)
@@ -125,7 +123,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
     case HealthStatusMet =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"New ASG fully up and reporting healthy in the ELBs")
+      context.parent ! LogMessage(s"New ASG up and reporting healthy in the ELB(s)")
       context.parent ! StackUpgradeLaunchCompleted(newAsgName.get)
 
     case msg: Log =>
