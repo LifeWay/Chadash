@@ -29,7 +29,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorL
 
     case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! WorkflowManager.StepFailed
+      context.parent ! WorkflowManager.StepFailed("Failed to load the stack file, see server log.")
   }
 }
 

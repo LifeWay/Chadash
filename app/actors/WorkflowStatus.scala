@@ -49,7 +49,7 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 
 object WorkflowStatus {
 
-  trait Log {
+  sealed trait Log {
     def message: String
   }
 

@@ -68,7 +68,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
 
     case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! WorkflowManager.StepFailed
+      context.parent ! WorkflowManager.StepFailed("Failed to tear down the old stack and unfreeze the new one. See server log for details.")
   }
 }
 

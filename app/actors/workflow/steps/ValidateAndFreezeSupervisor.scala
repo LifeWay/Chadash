@@ -67,7 +67,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends Actor wit
 
     case Terminated(actorRef) =>
       context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! WorkflowManager.StepFailed
+      context.parent ! WorkflowManager.StepFailed("Failed to verify and freeze the old stack. See server log for details.")
   }
 }
 
