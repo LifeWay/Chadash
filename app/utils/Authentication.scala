@@ -5,7 +5,7 @@ import play.api.Play.current
 import play.api.libs.json.{JsNumber, JsObject, JsString}
 import play.api.mvc.Results._
 import play.api.mvc._
-import play.api.{Configuration, Logger, Play}
+import play.api.{Configuration, Play}
 
 import scala.concurrent.Future
 
@@ -18,27 +18,12 @@ object Authentication {
     }
   }
 
-  def checkUserRoute(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse(), user: String, pw: String, stack: String): Future[Result] = {
-    val authConfig = Play.configuration.getConfig("auth")
-    authConfig match {
-      case Some(ac) =>
-        ac.getConfig(user) match {
-          case Some(userPerms) =>
-            userAuth(userPerms, user, pw) match {
-              case true =>
-                stackAuth(userPerms, stack) match {
-                  case true => callback(user)
-                  case false => Future.successful(notAuthResponse)
-                }
-              case false => Future.successful(notAuthResponse)
-            }
-          case None => Future.successful(notAuthResponse)
-        }
-
-      case None =>
-        Logger.error("Missing auth block in configuration.")
-        Future.successful(notAuthResponse)
-    }
+  def checkUserRoute(callback: (String) => Future[Result], notAuthResponse: Result = buildNotAuthorizedResponse(), username: String, pw: String, stack: String): Future[Result] = {
+    val optionalAccess = for {
+      config <- Play.configuration.getConfig("auth")
+      userConfig <- config.getConfig(username)
+    } yield if (userAuth(userConfig, username, pw) && stackAuth(userConfig, stack)) callback(username) else Future.successful(notAuthResponse)
+    optionalAccess.getOrElse(Future.successful(notAuthResponse))
   }
 
   def stackAuth(userPerms: Configuration, stackName: String): Boolean = {
