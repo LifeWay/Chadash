@@ -14,7 +14,7 @@ class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartabl
   override def receive: Receive = {
     case launchCommand: StackCreateCommand =>
 
-      val stackNameWithVersion = s"${launchCommand.stackName}-v${launchCommand.version}"
+      val stackNameWithVersion = s"chadash-${launchCommand.stackName}-v${launchCommand.version}"
       val updatedStackName = stackNamePattern.replaceAllIn(stackNameWithVersion, "-")
       val appVersionTag = new Tag()
         .withKey("ApplicationVersion")
