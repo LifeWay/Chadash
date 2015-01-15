@@ -7,3 +7,4 @@ POST        /api/deploy/:stackName                      controllers.Application.
 GET         /api/deploy/status-events/:stackName        controllers.Application.statusSocket(stackName:String)
 
 GET         /system-info/version                        controllers.Application.buildInfo
+GET         /system-info/healthcheck                    controllers.Application.healthCheck

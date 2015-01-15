@@ -23,10 +23,6 @@ object Application extends Controller {
   val jvmVersion = java.lang.System.getProperty("java.version")
   val jvmVendor = java.lang.System.getProperty("java.vendor")
 
-  def index = Action {
-    Ok("Welcome to Chadash. The immutable Cloud Deployer!")
-  }
-
   def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { implicit request =>
     Authentication.checkAuth(stackName) { userId =>
       Logger.info(s"User: $userId is requesting to deploy stack: $stackName.")
@@ -60,6 +56,14 @@ object Application extends Controller {
         case x: SubscribeToMe => Right(out => WorkflowStatusWebSocket.props(out, x.ref))
       }
     }
+  }
+
+  def index = Action {
+    Ok("Welcome to Chadash. The immutable Cloud Deployer!")
+  }
+
+  def healthCheck = Action {
+    Ok("API is up, backend status unknown.")
   }
 
   def buildInfo = Action {
