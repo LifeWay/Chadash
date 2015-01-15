@@ -15,7 +15,7 @@ class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor
   override def receive: Receive = {
     case msg: LoadStack =>
       val s3Client = new AmazonS3Client(credentials)
-      val stackObject: S3Object = s3Client.getObject(bucketName, s"chadash-asg-stacks/${msg.stackName}.json")
+      val stackObject: S3Object = s3Client.getObject(bucketName, s"chadash-stacks/${msg.stackName}.json")
       val stackFileJson = Json.parse(IOUtils.toByteArray(stackObject.getObjectContent))
 
       context.sender() ! StackLoaded(stackFileJson)
