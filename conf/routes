@@ -3,8 +3,8 @@
 # ~~~~
 
 GET         /                                           controllers.Application.index
-POST        /api/deploy/:stackName                      controllers.Application.deploy(stackName:String)
-GET         /api/deploy/status-events/:stackName        controllers.Application.statusSocket(stackName:String)
+POST        /api/deploy/*stackPath                      controllers.Application.deploy(stackPath:String)
+GET         /api/deploy-log/:stackPath                  controllers.Application.statusSocket(stackPath:String)
 
 GET         /system-info/version                        controllers.Application.buildInfo
 GET         /system-info/healthcheck                    controllers.Application.healthCheck

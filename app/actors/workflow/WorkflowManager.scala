@@ -56,14 +56,15 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
 
       val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(awsCreds), "loadStackSupervisor")
       context.watch(loadStackSupervisor)
-      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.stackName)
+      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.stackPath)
 
     case msg: LoadStackResponse =>
       workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
       logMessage("Stack JSON data loaded. Querying for existing stack")
       val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
-      validateAndFreezeSupervisor ! VerifyAndFreezeOldStack(deploy.stackName)
+      val stackName = deploy.stackPath.replaceAll("/", "-")
+      validateAndFreezeSupervisor ! VerifyAndFreezeOldStack(stackName)
 
     case NoOldStackExists =>
       context.unwatch(sender())
@@ -73,7 +74,9 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)
       workflowStepData.get("stackFileContents") match {
-        case Some(stackFile) => stackLauncher ! FirstStackLaunch(deploy.stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
+        case Some(stackFile) =>
+          val stackName = deploy.stackPath.replaceAll("/", "-")
+          stackLauncher ! FirstStackLaunch(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
 
@@ -85,7 +88,9 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)
       workflowStepData.get("stackFileContents") match {
-        case Some(stackFile) => stackLauncher ! StackUpgradeLaunch(deploy.stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
+        case Some(stackFile) =>
+          val stackName = deploy.stackPath.replaceAll("/", "-")
+          stackLauncher ! StackUpgradeLaunch(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
 

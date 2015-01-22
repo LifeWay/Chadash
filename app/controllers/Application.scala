@@ -23,16 +23,16 @@ object Application extends Controller {
   val jvmVersion = java.lang.System.getProperty("java.version")
   val jvmVendor = java.lang.System.getProperty("java.vendor")
 
-  def deploy(stackName: String) = Action.async(BodyParsers.parse.json) { implicit request =>
-    Authentication.checkAuth(stackName) { userId =>
-      Logger.info(s"User: $userId is requesting to deploy stack: $stackName.")
+  def deploy(stackPath: String) = Action.async(BodyParsers.parse.json) { implicit request =>
+    Authentication.checkAuth(stackPath) { userId =>
+      Logger.info(s"User: $userId is requesting to deploy stack: $stackPath.")
       val res = request.body.validate[Deployment]
       res.fold(
         errors => Future(BadRequest(Json.obj("status" -> "Processing Error", "message" -> JsError.toFlatJson(errors)))),
         deployment => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackName, deployment.version, deployment.amiId)
+            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackPath, deployment.version, deployment.amiId)
           ) yield res
 
           f.map {

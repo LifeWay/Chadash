@@ -18,7 +18,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorL
       val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName))
       context.watch(stackLoaderActor)
 
-      stackLoaderActor ! LoadStack(msg.stackName)
+      stackLoaderActor ! LoadStack(msg.stackPath)
       context.become(stepInProcess)
   }
 
@@ -35,7 +35,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorL
 
 object LoadStackSupervisor {
 
-  case class LoadStackQuery(bucketName: String, stackName: String)
+  case class LoadStackQuery(bucketName: String, stackPath: String)
 
   case class LoadStackResponse(stackData: JsValue)
 
