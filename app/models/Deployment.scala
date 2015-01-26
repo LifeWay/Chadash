@@ -12,3 +12,10 @@ object Deployment {
     )(Deployment.apply _)
   implicit val writes = Json.writes[Deployment]
 }
+
+case class DeleteStack(version: String)
+
+object DeleteStack {
+  implicit val reads: Reads[DeleteStack] = (JsPath \ "version").read[String].map(DeleteStack(_))
+  implicit val writes = Json.writes[DeleteStack]
+}

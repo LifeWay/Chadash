@@ -3,11 +3,12 @@ package actors.workflow
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowStatus.{DeployStatusSubscribeRequest, Log, LogMessage}
+import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStackFinished, DeleteExistingStack}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
-import actors.workflow.steps.{TearDownSupervisor, LoadStackSupervisor, NewStackSupervisor, ValidateAndFreezeSupervisor}
+import actors.workflow.steps._
 import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
@@ -22,7 +23,7 @@ import play.api.libs.json.Json
  * be between them that can handle the restarts for those calls.
  *
  */
-class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
+class WorkflowManager extends Actor with ActorLogging {
 
   import actors.workflow.WorkflowManager._
 
@@ -32,6 +33,8 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
 
   var workflowStepData = Map.empty[String, String]
   var awsCreds: AWSCredentials = null
+  var deploy: Deploy = null
+  var existingStrack: String = null
 
   /**
    * Start up the status actor before we start processing anything.
@@ -42,11 +45,54 @@ class WorkflowManager(deploy: Deploy) extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case StartDeploy =>
+    case msg: StartDeploy =>
+      deploy = msg.deploy
       sender() ! DeployStarted
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
       context.become(inProcess())
+
+    case msg: DeleteExistingStack =>
+      existingStrack = msg.stackName
+      sender() ! StackDeleteStarted
+      context.watch(ChadashSystem.credentials)
+      ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
+      context.become(deleteInProcess())
+  }
+
+  def deleteInProcess(): Receive = {
+    case msg: CurrentCredentials =>
+      context.unwatch(sender())
+      awsCreds = msg.credentials
+
+      val deleteStackSupervisor = context.actorOf(DeleteStackSupervisor.props(awsCreds), "deleteStackSupervisor")
+      context.watch(deleteStackSupervisor)
+      deleteStackSupervisor ! DeleteExistingStack(existingStrack)
+
+    case DeleteExistingStackFinished =>
+      context.unwatch(sender())
+
+      logMessage("The stack has been deleted")
+      logMessage("Delete complete")
+      context.parent ! StackDeleteCompleted
+
+
+    case msg: DeployStatusSubscribeRequest =>
+      context.child(statusActorName).get forward msg
+
+    case msg: Log =>
+      logMessage(msg.message)
+
+    case msg: StepFailed =>
+      logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
+      context.parent ! DeploymentSupervisor.DeployFailed
+
+    case Terminated(actorRef) =>
+      logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+      context.parent ! DeploymentSupervisor.DeployFailed
+
+    case msg: Any =>
+      log.debug("Unhandled message type received: " + msg.toString)
   }
 
   def inProcess(): Receive = {
@@ -150,12 +196,16 @@ object WorkflowManager {
 
   case class StepFailed(reason: String)
 
-  case object StartDeploy
+  case class StartDeploy(deploy: Deploy)
 
   case object DeployStarted
 
   case object DeployCompleted
 
-  def props(deploy: Deploy): Props = Props(new WorkflowManager(deploy: Deploy))
+  case object StackDeleteStarted
+
+  case object StackDeleteCompleted
+
+  def props(): Props = Props(new WorkflowManager)
 
 }

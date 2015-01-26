@@ -2,7 +2,8 @@ package actors
 
 import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus}
 import actors.workflow.WorkflowManager
-import actors.workflow.WorkflowManager.{DeployCompleted, StartDeploy}
+import actors.workflow.WorkflowManager.{StackDeleteCompleted, DeployCompleted, StartDeploy}
+import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 
@@ -32,9 +33,23 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         case Some(x) =>
           sender ! WorkflowInProgress
         case None => {
-          val workflowActor = context.actorOf(WorkflowManager.props(deploy), actorName)
+          val workflowActor = context.actorOf(WorkflowManager.props(), actorName)
           context.watch(workflowActor)
-          workflowActor forward StartDeploy
+          workflowActor forward StartDeploy(deploy)
+        }
+      }
+
+    case msg: DeleteStack =>
+      val stackName = msg.stackPath.replaceAll("/", "-")
+      val updatedStackName = stackNamePattern.replaceAllIn(s"chadash-${msg.stackPath}-v${msg.appVersion}", "-")
+      val actorName = s"workflow-$stackName"
+      context.child(actorName) match {
+        case Some(x) =>
+          sender ! WorkflowInProgress
+        case None => {
+          val workflowActor = context.actorOf(WorkflowManager.props(), actorName)
+          context.watch(workflowActor)
+          workflowActor forward DeleteExistingStack(updatedStackName)
         }
       }
 
@@ -58,6 +73,10 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       context.unwatch(sender())
       context.stop(sender())
 
+    case StackDeleteCompleted =>
+      context.unwatch(sender())
+      context.stop(sender())
+
     case DeployFailed =>
       log.error("Deployment failed for this workflow:" + sender().toString())
       context.unwatch(sender())
@@ -77,6 +96,8 @@ object DeploymentSupervisor {
 
   case class DeployWorkflow(workflowActor: ActorRef)
 
+  case class DeleteStack(stackPath: String, appVersion: String)
+
   case object Started
 
   case object WorkflowInProgress
@@ -85,6 +106,7 @@ object DeploymentSupervisor {
 
   case object NoWorkflow
 
+  val stackNamePattern = "[^\\w-]".r
 }
 
 
