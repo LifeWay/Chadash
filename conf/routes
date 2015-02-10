@@ -2,10 +2,11 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET         /                                           controllers.Application.index
-POST        /api/deploy/*stackPath                      controllers.Application.deploy(stackPath:String)
-POST        /api/delete/*stackPath                      controllers.Application.deleteStack(stackPath:String)
-GET         /api/deploy-log/*stackPath                  controllers.Application.statusSocket(stackPath:String)
+GET         /                                 controllers.Application.index
+POST        /api/deploy/*stackPath            controllers.Application.deploy(stackPath:String)
+POST        /api/delete/*stackPath            controllers.Application.deleteStack(stackPath:String)
+GET         /api/deploy-log/*stackPath        controllers.Application.statusSocket(stackPath:String, version: String)
 
-GET         /system-info/version                        controllers.Application.buildInfo
-GET         /system-info/healthcheck                    controllers.Application.healthCheck
+GET         /system-info/version              controllers.Application.buildInfo
+GET         /system-info/healthcheck          controllers.Application.healthCheck
+

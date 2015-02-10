@@ -1,6 +1,6 @@
 package actors.workflow.steps
 
-import actors.WorkflowStatus.LogMessage
+import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackLoader
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}

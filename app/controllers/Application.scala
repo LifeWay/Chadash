@@ -1,9 +1,9 @@
 package controllers
 
 import actors.DeploymentSupervisor.{WorkflowInProgress, NoWorkflow}
-import actors.WorkflowStatus.SubscribeToMe
+import actors.WorkflowLog.SubscribeToMe
 import actors.workflow.aws.WorkflowStatusWebSocket
-import actors.{ChadashSystem, DeploymentSupervisor, WorkflowStatus}
+import actors._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{DeleteStack, Deployment}
@@ -65,11 +65,11 @@ object Application extends Controller {
     }
   }
 
-  def statusSocket(appName: String) = {
+  def statusSocket(appName: String, version: String) = {
     WebSocket.tryAcceptWithActor[String, String] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
       val f = for (
-        res <- ChadashSystem.deploymentSupervisor ? WorkflowStatus.DeployStatusSubscribeRequest(appName)
+        res <- ChadashSystem.deploymentSupervisor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)
       ) yield res
 
       f.map {

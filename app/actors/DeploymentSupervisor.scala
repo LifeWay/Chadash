@@ -1,8 +1,9 @@
 package actors
 
-import actors.WorkflowStatus.{DeployStatusSubscribeRequest, GetStatus}
+
+import actors.WorkflowLog.DeployStatusSubscribeRequest
 import actors.workflow.WorkflowManager
-import actors.workflow.WorkflowManager.{StackDeleteCompleted, DeployCompleted, StartDeploy}
+import actors.workflow.WorkflowManager.{DeployCompleted, StackDeleteCompleted, StartDeploy}
 import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
@@ -27,43 +28,32 @@ class DeploymentSupervisor extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case deploy: Deploy =>
-      val stackName = deploy.stackPath.replaceAll("/", "-")
-      val actorName = s"workflow-$stackName"
+      val actorName = stackNameBuilder(deploy)
       context.child(actorName) match {
         case Some(x) =>
           sender ! WorkflowInProgress
-        case None => {
-          val workflowActor = context.actorOf(WorkflowManager.props(), actorName)
+        case None =>
+          val deploymentLog = context.actorOf(WorkflowLog.props(), logNameBuilder(deploy))
+          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), actorName)
           context.watch(workflowActor)
           workflowActor forward StartDeploy(deploy)
-        }
       }
 
     case msg: DeleteStack =>
-      val stackName = msg.stackPath.replaceAll("/", "-")
-      val updatedStackName = stackNamePattern.replaceAllIn(s"chadash-${msg.stackPath}-v${msg.appVersion}", "-")
-      val actorName = s"workflow-$stackName"
-      context.child(actorName) match {
+      val stackName = stackNameBuilder(msg.stackPath, msg.appVersion)
+      context.child(stackName) match {
         case Some(x) =>
           sender ! WorkflowInProgress
         case None => {
-          val workflowActor = context.actorOf(WorkflowManager.props(), actorName)
+          val deploymentLog = context.actorOf(WorkflowLog.props(), logNameBuilder(msg.stackPath, msg.appVersion))
+          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), stackName)
           context.watch(workflowActor)
-          workflowActor forward DeleteExistingStack(updatedStackName)
+          workflowActor forward DeleteExistingStack(stackName)
         }
       }
 
-    case status: DeployStatusQuery =>
-      val stackName = status.stackPath.replaceAll("/", "-")
-      val actorName = s"workflow-$stackName"
-      context.child(actorName) match {
-        case Some(x) => x ! GetStatus
-        case None => sender() ! NoWorkflow
-      }
-
     case subscribe: DeployStatusSubscribeRequest =>
-      val stackName = subscribe.stackPath.replaceAll("/", "-")
-      val actorName = s"workflow-$stackName"
+      val actorName = stackNameBuilder(subscribe.stackPath, subscribe.appVersion)
       context.child(actorName) match {
         case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
@@ -105,8 +95,16 @@ object DeploymentSupervisor {
   case object DeployFailed
 
   case object NoWorkflow
+  
+  val awsStackNamePattern = "[^\\w-]".r
 
-  val stackNamePattern = "[^\\w-]".r
+  def stackNameBuilder(stackPath: String, version: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath-v$version", "-")
+
+  def stackNameBuilder(deploy: Deploy): String = stackNameBuilder(deploy.stackPath, deploy.appVersion)
+
+  def logNameBuilder(stackPath: String, version: String): String = s"logs-${stackNameBuilder(stackPath, version)}"
+
+  def logNameBuilder(deploy: Deploy): String = logNameBuilder(deploy.stackPath, deploy.appVersion)
 }
 
 

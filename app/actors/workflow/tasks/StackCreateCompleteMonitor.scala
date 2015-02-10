@@ -1,6 +1,6 @@
 package actors.workflow.tasks
 
-import actors.WorkflowStatus.LogMessage
+import actors.WorkflowLog.LogMessage
 import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials

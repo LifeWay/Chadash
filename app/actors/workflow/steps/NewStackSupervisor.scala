@@ -1,6 +1,6 @@
 package actors.workflow.steps
 
-import actors.WorkflowStatus.{Log, LogMessage}
+import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.HealthyInstanceSupervisor.{HealthStatusMet, MonitorASGForELBHealth}
 import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}

@@ -1,42 +1,50 @@
 package actors
 
+import actors.DeploymentSupervisor.DeployFailed
+import actors.workflow.WorkflowManager.DeployCompleted
 import actors.workflow.aws.WorkflowStatusWebSocket.MessageToClient
 import akka.actor._
 
 /**
  * This actor is intended to be created by your workflow supervisor. Your supervisor will manage this as one of its
  * children, and send any log data to it based on the actions you take inside of your supervisor.
- *
- * @param totalSteps
  */
-class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
+class WorkflowLog extends Actor with ActorLogging {
 
-  import actors.WorkflowStatus._
+  import actors.WorkflowLog._
 
-  var stepsCompleted: Int = 0
+  var workflow: Option[ActorRef] = None
   var logs = Seq.empty[String]
   var subscribers = Seq.empty[ActorRef]
 
   override def receive: Receive = {
-    case x: LogMessage => logger(x.message)
-    case x: ItemFinished =>
+    case x: LogMessage =>
       logger(x.message)
-      stepsCompleted = stepsCompleted + 1
-
-    case GetStatus =>
-      sender() ! Status(stepsCompleted / totalSteps, logs)
 
     case x: DeployStatusSubscribeRequest =>
       sender() ! SubscribeToMe(self)
 
+    case WatchMePlease =>
+      workflow = Some(sender())
+      context.watch(sender())
+
     case DeployStatusSubscribeConfirm =>
       subscribers = subscribers :+ sender()
       context.watch(sender())
-      logs.map(x => sender() ! MessageToClient(x))
+      logs.map(sender() ! MessageToClient(_))
+
+    case DeployCompleted =>
+      subscribers.map(_ forward DeployCompleted)
+
+    case DeployFailed =>
+      subscribers.map(_ forward DeployFailed)
 
     case Terminated(actorRef) =>
-      context.unwatch(actorRef)
-      subscribers = subscribers.filter(p => !p.equals(actorRef))
+      for(x <- workflow) yield if(x == actorRef) {
+        subscribers.map(_ ! WorkflowFailed)
+      } else {
+        subscribers = subscribers.filter(p => !p.equals(actorRef))
+      }
   }
 
   def logger(msg: String): Unit = {
@@ -47,7 +55,7 @@ class WorkflowStatus(val totalSteps: Int) extends Actor with ActorLogging {
 }
 
 
-object WorkflowStatus {
+object WorkflowLog {
 
   sealed trait Log {
     def message: String
@@ -55,17 +63,15 @@ object WorkflowStatus {
 
   case class LogMessage(message: String) extends Log
 
-  case class ItemFinished(message: String) extends Log
-
-  case object GetStatus
-
-  case class Status(percentComplete: Float, logMessages: Seq[String])
-
   case class SubscribeToMe(ref: ActorRef)
 
-  case class DeployStatusSubscribeRequest(stackPath: String)
+  case object WatchMePlease
+
+  case class DeployStatusSubscribeRequest(stackPath: String, appVersion: String)
+
+  case object WorkflowFailed
 
   case object DeployStatusSubscribeConfirm
 
-  def props(totalSteps: Int): Props = Props(new WorkflowStatus(totalSteps))
+  def props(): Props = Props(new WorkflowLog)
 }

@@ -1,6 +1,8 @@
 package actors.workflow.aws
 
-import actors.WorkflowStatus.DeployStatusSubscribeConfirm
+import actors.DeploymentSupervisor.DeployFailed
+import actors.WorkflowLog.DeployStatusSubscribeConfirm
+import actors.workflow.WorkflowManager.DeploySuccessful
 import akka.actor._
 
 class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends Actor with ActorLogging {
@@ -9,6 +11,7 @@ class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends A
 
   workflowStatus ! DeployStatusSubscribeConfirm
   context.watch(workflowStatus)
+  context.watch(out)
 
   override def receive: Receive = {
     case msg: String =>
@@ -18,8 +21,8 @@ class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends A
       out ! (x.msg + "\n")
 
     case x: Terminated =>
-      x.getActor == workflowStatus
-      self ! PoisonPill
+     if(x.getActor == workflowStatus)
+       self ! PoisonPill
   }
 }
 

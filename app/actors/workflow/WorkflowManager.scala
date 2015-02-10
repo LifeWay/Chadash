@@ -2,14 +2,14 @@ package actors.workflow
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
-import actors.WorkflowStatus.{DeployStatusSubscribeRequest, Log, LogMessage}
+import actors.WorkflowLog.{WatchMePlease, DeployStatusSubscribeRequest, Log, LogMessage}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStackFinished, DeleteExistingStack}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
 import actors.workflow.steps._
-import actors.{AmazonCredentials, ChadashSystem, DeploymentSupervisor, WorkflowStatus}
+import actors._
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.ConfigFactory
@@ -23,11 +23,10 @@ import play.api.libs.json.Json
  * be between them that can handle the restarts for those calls.
  *
  */
-class WorkflowManager extends Actor with ActorLogging {
+class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
 
   import actors.workflow.WorkflowManager._
 
-  val statusActorName = "WorkFlowStatus"
   val appConfig = ConfigFactory.load()
   val stackBucket = appConfig.getString("chadash.stack-bucket")
 
@@ -37,11 +36,10 @@ class WorkflowManager extends Actor with ActorLogging {
   var existingStrack: String = null
 
   /**
-   * Start up the status actor before we start processing anything.
+   * Tell the logging actor about me before we get going.
    */
   override def preStart(): Unit = {
-    val workflowStatus = context.actorOf(WorkflowStatus.props(5), statusActorName)
-    context.watch(workflowStatus)
+    logActor ! WatchMePlease
   }
 
   override def receive: Receive = {
@@ -78,7 +76,7 @@ class WorkflowManager extends Actor with ActorLogging {
 
 
     case msg: DeployStatusSubscribeRequest =>
-      context.child(statusActorName).get forward msg
+      logActor forward msg
 
     case msg: Log =>
       logMessage(msg.message)
@@ -167,29 +165,27 @@ class WorkflowManager extends Actor with ActorLogging {
       context.parent ! DeployCompleted
 
     case msg: DeployStatusSubscribeRequest =>
-      context.child(statusActorName).get forward msg
+      logActor forward msg
 
     case msg: Log =>
       logMessage(msg.message)
 
     case msg: StepFailed =>
       logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
-      context.parent ! DeploymentSupervisor.DeployFailed
+      failed()
 
     case Terminated(actorRef) =>
       logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! DeploymentSupervisor.DeployFailed
+      failed()
 
     case msg: Any =>
       log.debug("Unhandled message type received: " + msg.toString)
   }
 
-  def logMessage(message: String) = {
-    context.child(statusActorName) match {
-      case Some(actor) => actor ! LogMessage(message)
-      case None => log.error(s"Unable to find logging status actor to send log message to. This is an error. Message that would have been delivered: ${message}")
-    }
-  }
+  def failed() = context.parent ! DeploymentSupervisor.DeployFailed
+
+
+  def logMessage(message: String) = logActor ! LogMessage(message)
 }
 
 object WorkflowManager {
@@ -200,12 +196,16 @@ object WorkflowManager {
 
   case object DeployStarted
 
+  case object DeploySuccessful
+
+  case object DeployFailed
+
   case object DeployCompleted
 
   case object StackDeleteStarted
 
   case object StackDeleteCompleted
 
-  def props(): Props = Props(new WorkflowManager)
+  def props(logActor: ActorRef): Props = Props(new WorkflowManager(logActor))
 
 }

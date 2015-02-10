@@ -1,6 +1,6 @@
 package actors.workflow.steps
 
-import actors.WorkflowStatus.LogMessage
+import actors.WorkflowLog.LogMessage
 import actors.workflow.WorkflowManager.StepFailed
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
 import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}

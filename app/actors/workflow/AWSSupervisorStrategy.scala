@@ -1,6 +1,6 @@
 package actors.workflow
 
-import actors.WorkflowStatus.LogMessage
+import actors.WorkflowLog.LogMessage
 import akka.actor.SupervisorStrategy.{Restart, Stop}
 import akka.actor.{Actor, ActorLogging, OneForOneStrategy}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}

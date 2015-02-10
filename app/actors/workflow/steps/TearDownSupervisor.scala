@@ -1,6 +1,6 @@
 package actors.workflow.steps
 
-import actors.WorkflowStatus.{Log, LogMessage}
+import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.tasks.StackInfo.{StackIdResponse, StackIdQuery}
 import actors.workflow.{WorkflowManager, AWSSupervisorStrategy}
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}

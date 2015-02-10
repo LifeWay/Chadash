@@ -1,5 +1,6 @@
 package actors.workflow.tasks
 
+import actors.DeploymentSupervisor
 import actors.workflow.AWSRestartableActor
 import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
@@ -13,9 +14,7 @@ class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartabl
 
   override def receive: Receive = {
     case launchCommand: StackCreateCommand =>
-
-      val stackNameWithVersion = s"chadash-${launchCommand.stackName}-v${launchCommand.version}"
-      val updatedStackName = stackNamePattern.replaceAllIn(stackNameWithVersion, "-")
+      val stackNameWithVersion = DeploymentSupervisor.stackNameBuilder(launchCommand.stackName, launchCommand.version)
       val appVersionTag = new Tag()
         .withKey("ApplicationVersion")
         .withValue(launchCommand.version)
@@ -31,7 +30,7 @@ class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartabl
 
       val createStackRequest = new CreateStackRequest()
         .withTemplateBody(launchCommand.stackData.toString())
-        .withStackName(updatedStackName)
+        .withStackName(stackNameWithVersion)
         .withTags(appVersionTag)
         .withParameters(params.toArray: _*)
 
@@ -39,7 +38,7 @@ class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartabl
       val awsClient = new AmazonCloudFormationClient(credentials)
       awsClient.createStack(createStackRequest)
 
-      context.sender() ! StackCreateRequestCompleted(updatedStackName)
+      context.sender() ! StackCreateRequestCompleted(stackNameWithVersion)
   }
 }
 
@@ -50,6 +49,4 @@ object StackCreator {
   case class StackCreateRequestCompleted(stackName: String)
 
   def props(credentials: AWSCredentials): Props = Props(new StackCreator(credentials))
-
-  val stackNamePattern = "[^\\w-]".r
 }
