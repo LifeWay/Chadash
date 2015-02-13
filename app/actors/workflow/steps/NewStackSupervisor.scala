@@ -1,12 +1,12 @@
 package actors.workflow.steps
 
-import actors.WorkflowLog.{Log, LogMessage}
+import actors.WorkflowLog.LogMessage
 import actors.workflow.steps.HealthyInstanceSupervisor.{HealthStatusMet, MonitorASGForELBHealth}
 import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
-import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}
 import actors.workflow.tasks.StackCreateCompleteMonitor.StackCreateCompleted
 import actors.workflow.tasks.StackCreator.{StackCreateCommand, StackCreateRequestCompleted}
+import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}
 import actors.workflow.tasks._
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.{Actor, ActorLogging, Props, Terminated}
@@ -126,7 +126,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
       context.parent ! LogMessage(s"New ASG up and reporting healthy in the ELB(s)")
       context.parent ! StackUpgradeLaunchCompleted(newAsgName.get)
 
-    case msg: Log =>
+    case msg: LogMessage =>
       context.parent forward (msg)
 
     case Terminated(actorRef) =>

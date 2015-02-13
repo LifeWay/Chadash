@@ -1,7 +1,7 @@
 package actors
 
 
-import actors.WorkflowLog.DeployStatusSubscribeRequest
+import actors.WorkflowLog.{ClearLogAndAvoidDeath, DeployStatusSubscribeRequest}
 import actors.workflow.WorkflowManager
 import actors.workflow.WorkflowManager.{DeployCompleted, StackDeleteCompleted, StartDeploy}
 import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
@@ -33,7 +33,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         case Some(x) =>
           sender ! WorkflowInProgress
         case None =>
-          val deploymentLog = context.actorOf(WorkflowLog.props(), logNameBuilder(deploy))
+          val deploymentLog = getLogActor(deploy)
           val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), actorName)
           context.watch(workflowActor)
           workflowActor forward StartDeploy(deploy)
@@ -45,7 +45,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         case Some(x) =>
           sender ! WorkflowInProgress
         case None => {
-          val deploymentLog = context.actorOf(WorkflowLog.props(), logNameBuilder(msg.stackPath, msg.appVersion))
+          val deploymentLog = getLogActor(msg.stackPath, msg.appVersion)
           val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), stackName)
           context.watch(workflowActor)
           workflowActor forward DeleteExistingStack(stackName)
@@ -53,28 +53,37 @@ class DeploymentSupervisor extends Actor with ActorLogging {
       }
 
     case subscribe: DeployStatusSubscribeRequest =>
-      val actorName = stackNameBuilder(subscribe.stackPath, subscribe.appVersion)
-      context.child(actorName) match {
+      context.child(logNameBuilder(subscribe.stackPath, subscribe.appVersion)) match {
         case Some(x) => x forward subscribe
         case None => sender() ! NoWorkflow
       }
 
-    case DeployCompleted =>
-      context.unwatch(sender())
-      context.stop(sender())
-
-    case StackDeleteCompleted =>
-      context.unwatch(sender())
-      context.stop(sender())
+    case DeployCompleted | StackDeleteCompleted =>
+      stopChild()
 
     case DeployFailed =>
-      log.error("Deployment failed for this workflow:" + sender().toString())
-      context.unwatch(sender())
-      context.stop(sender())
+      log.error(s"Deployment failed for this workflow: ${sender().path.name}")
+      stopChild()
 
     case Terminated(actorRef) =>
-      log.error(s"One of our workflows has died...the deployment has failed and needs a human ${actorRef.toString}")
+      log.error(s"One of our workflow supervisors has died unexpectedly...the deployment has failed and needs a human ${actorRef.toString()}")
+  }
 
+  def getLogActor(deploy: Deploy): ActorRef = getLogActor(deploy.stackPath, deploy.appVersion)
+
+  def getLogActor(stackPath: String, appVersion: String): ActorRef = {
+    context.child(logNameBuilder(stackPath, appVersion)) match {
+      case Some(logActor) =>
+        logActor ! ClearLogAndAvoidDeath
+        logActor
+      case None =>
+        context.actorOf(WorkflowLog.props(), logNameBuilder(stackPath, appVersion))
+    }
+  }
+
+  def stopChild() = {
+    context.unwatch(sender())
+    context.stop(sender())
   }
 }
 
@@ -92,10 +101,10 @@ object DeploymentSupervisor {
 
   case object WorkflowInProgress
 
-  case object DeployFailed
+  case class DeployFailed(logRef: ActorRef)
 
   case object NoWorkflow
-  
+
   val awsStackNamePattern = "[^\\w-]".r
 
   def stackNameBuilder(stackPath: String, version: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath-v$version", "-")
@@ -103,8 +112,6 @@ object DeploymentSupervisor {
   def stackNameBuilder(deploy: Deploy): String = stackNameBuilder(deploy.stackPath, deploy.appVersion)
 
   def logNameBuilder(stackPath: String, version: String): String = s"logs-${stackNameBuilder(stackPath, version)}"
-
-  def logNameBuilder(deploy: Deploy): String = logNameBuilder(deploy.stackPath, deploy.appVersion)
 }
 
 

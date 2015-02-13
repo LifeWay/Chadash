@@ -1,13 +1,13 @@
 package actors.workflow.steps
 
-import actors.WorkflowLog.{Log, LogMessage}
-import actors.workflow.tasks.StackInfo.{StackIdResponse, StackIdQuery}
-import actors.workflow.{WorkflowManager, AWSSupervisorStrategy}
+import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
-import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCompleted, UnfreezeASGCommand}
-import actors.workflow.tasks.{StackInfo, DeleteStack, StackDeleteCompleteMonitor, UnfreezeASG}
-import akka.actor.{Terminated, Actor, ActorLogging, Props}
+import actors.workflow.tasks.StackInfo.{StackIdQuery, StackIdResponse}
+import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCommand, UnfreezeASGCompleted}
+import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo, UnfreezeASG}
+import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
+import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import com.amazonaws.auth.AWSCredentials
 
 class TearDownSupervisor(credentials: AWSCredentials) extends Actor with ActorLogging with AWSSupervisorStrategy {
@@ -63,7 +63,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
       context.parent ! LogMessage(s"New ASG scaling activities have been resumed: ${msg.asgName}")
       context.parent ! TearDownFinished
 
-    case msg: Log =>
+    case msg: LogMessage =>
       context.parent forward (msg)
 
     case Terminated(actorRef) =>

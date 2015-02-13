@@ -1,34 +1,32 @@
-package actors.workflow.aws
+package actors
 
-import actors.DeploymentSupervisor.DeployFailed
-import actors.WorkflowLog.DeployStatusSubscribeConfirm
-import actors.workflow.WorkflowManager.DeploySuccessful
+import actors.WorkflowLog._
 import akka.actor._
 
-class WorkflowStatusWebSocket(out: ActorRef, workflowStatus: ActorRef) extends Actor with ActorLogging {
 
-  import actors.workflow.aws.WorkflowStatusWebSocket._
+object WorkflowStatusWebSocket {
+  def props(out: ActorRef, workflowStatus: ActorRef) = Props(new WorkflowStatusWebSocket(out, workflowStatus))
+}
 
-  workflowStatus ! DeployStatusSubscribeConfirm
-  context.watch(workflowStatus)
-  context.watch(out)
+class WorkflowStatusWebSocket(out: ActorRef, workflowLog: ActorRef) extends Actor with ActorLogging {
+
+  workflowLog ! DeployStatusSubscribeConfirm
+  context.watch(workflowLog)
 
   override def receive: Receive = {
     case msg: String =>
       out ! "This is a one-way websocket. I do not accept messages!"
 
-    case x: MessageToClient =>
-      out ! (x.msg + "\n")
+    case x: Log =>
+      x match {
+        case LogMessage(logMessage) => out ! logMessage + "\n"
+        case terminationMessage@(WorkflowFailed | WorkflowSucceeded) =>
+          out ! terminationMessage.message
+          self ! PoisonPill
+      }
 
-    case x: Terminated =>
-     if(x.getActor == workflowStatus)
-       self ! PoisonPill
+    case Terminated(actor) =>
+      out ! "LoggerDied: If this is not expected, this is an error state."
+      context.stop(self)
   }
-}
-
-object WorkflowStatusWebSocket {
-
-  case class MessageToClient(msg: String)
-
-  def props(out: ActorRef, workflowStatus: ActorRef) = Props(new WorkflowStatusWebSocket(out, workflowStatus))
 }

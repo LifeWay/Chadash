@@ -2,8 +2,8 @@ package actors.workflow
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
-import actors.WorkflowLog.{WatchMePlease, DeployStatusSubscribeRequest, Log, LogMessage}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStackFinished, DeleteExistingStack}
+import actors.WorkflowLog._
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
@@ -73,21 +73,21 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       logMessage("The stack has been deleted")
       logMessage("Delete complete")
       context.parent ! StackDeleteCompleted
+      logActor ! WorkflowSucceeded
 
-
-    case msg: DeployStatusSubscribeRequest =>
-      logActor forward msg
-
-    case msg: Log =>
+    case msg: LogMessage =>
       logMessage(msg.message)
 
     case msg: StepFailed =>
-      logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
+      logMessage(s"The following child has failed: ${context.sender().path.name} for the following reason: ${msg.reason}")
+      context.unwatch(sender())
       context.parent ! DeploymentSupervisor.DeployFailed
+      logActor ! WorkflowFailed
 
     case Terminated(actorRef) =>
       logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
       context.parent ! DeploymentSupervisor.DeployFailed
+      logActor ! WorkflowFailed
 
     case msg: Any =>
       log.debug("Unhandled message type received: " + msg.toString)
@@ -143,6 +143,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       context.stop(sender())
       logMessage(s"The first version of this stack has been successfully deployed. Stack Name: ${msg.newStackName}")
       context.parent ! DeployCompleted
+      logActor ! WorkflowSucceeded
 
     case msg: StackUpgradeLaunchCompleted =>
       context.unwatch(sender())
@@ -163,11 +164,9 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       logMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
       logMessage("Deploy complete")
       context.parent ! DeployCompleted
+      logActor ! WorkflowSucceeded
 
-    case msg: DeployStatusSubscribeRequest =>
-      logActor forward msg
-
-    case msg: Log =>
+    case msg: LogMessage =>
       logMessage(msg.message)
 
     case msg: StepFailed =>
@@ -182,8 +181,10 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       log.debug("Unhandled message type received: " + msg.toString)
   }
 
-  def failed() = context.parent ! DeploymentSupervisor.DeployFailed
-
+  def failed() = {
+    context.parent ! DeploymentSupervisor.DeployFailed(logActor)
+    logActor ! WorkflowFailed
+  }
 
   def logMessage(message: String) = logActor ! LogMessage(message)
 }
