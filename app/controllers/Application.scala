@@ -1,8 +1,7 @@
 package controllers
 
-import actors.DeploymentSupervisor.{WorkflowInProgress, NoWorkflow}
+import actors.DeploymentSupervisor.{NoWorkflow, WorkflowInProgress}
 import actors.WorkflowLog.SubscribeToMe
-import actors.workflow.aws.WorkflowStatusWebSocket
 import actors._
 import akka.pattern.ask
 import akka.util.Timeout
