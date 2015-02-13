@@ -1,70 +1,96 @@
 package actors.workflow.steps
 
 import actors.WorkflowLog.{Log, LogMessage}
+import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
+import actors.workflow.steps.DeleteStackSupervisor.{DeleteStackData, DeleteStackStates}
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
-import actors.workflow.tasks.StackInfo.{StackIdQuery, StackIdResponse}
+import actors.workflow.tasks.StackInfo.StackIdQuery
 import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo}
-import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
-import akka.actor.{Actor, ActorLogging, Props, Terminated}
+import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-class DeleteStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLogging with AWSSupervisorStrategy {
+
+object DeleteStackSupervisor {
+  //Interaction Messages
+  sealed trait DeleteStackMessage
+  case class DeleteExistingStack(stackName: String) extends DeleteStackMessage
+  case object DeleteExistingStackFinished extends DeleteStackMessage
+
+  //FSM: States
+  sealed trait DeleteStackStates
+  case object AwaitingDeleteStackCommand extends DeleteStackStates
+  case object AwaitingStackIdResponse extends DeleteStackStates
+  case object AwaitingStackDeletedResponse extends DeleteStackStates
+  case object AwaitingStackDeleteCompleted extends DeleteStackStates
+
+  //FSM: Data
+  sealed trait DeleteStackData
+  case object Uninitialized extends DeleteStackData
+  case class StackId(stackId: String) extends DeleteStackData
+  case class StackName(stackName: String) extends DeleteStackData
+  case class StackIdAndName(stackId: String, stackName: String) extends DeleteStackData
+
+  def props(credentials: AWSCredentials): Props = Props(new DeleteStackSupervisor(credentials))
+}
+
+class DeleteStackSupervisor(credentials: AWSCredentials) extends Actor with FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy  {
 
   import actors.workflow.steps.DeleteStackSupervisor._
 
-  var stackName = ""
-  var stackId = ""
+  startWith(AwaitingDeleteStackCommand, Uninitialized)
 
-  override def receive: Receive = {
-    case msg: DeleteExistingStack =>
-
-      stackName = msg.stackName
+  when(AwaitingDeleteStackCommand) {
+    case Event(msg: DeleteExistingStack, _) =>
       val stackInfo = context.actorOf(StackInfo.props(credentials), "stackInfo")
       context.watch(stackInfo)
       stackInfo ! StackIdQuery(msg.stackName)
-      context.become(stepInProcess)
+      goto(AwaitingStackIdResponse) using StackName(msg.stackName)
   }
 
-  def stepInProcess: Receive = {
-    case msg: StackIdResponse =>
-      stackId = msg.stackId
 
-      context.parent ! LogMessage(s"Deleting stack: $stackName")
+  when(AwaitingStackIdResponse) {
+    case Event(msg: StackInfo.StackIdResponse, data: StackName) =>
+      context.unwatch(sender())
+      context.parent ! LogMessage(s"Deleting stack: ${data.stackName}")
       val deleteStack = context.actorOf(DeleteStack.props(credentials), "stackDeleter")
       context.watch(deleteStack)
-      deleteStack ! DeleteStackCommand(stackName)
-      context.become(stepInProcess)
+      deleteStack ! DeleteStackCommand(data.stackName)
+      goto(AwaitingStackDeletedResponse) using StackIdAndName(msg.stackId, data.stackName)
+  }
 
-    case msg: StackDeletedResponse =>
+  when(AwaitingStackDeletedResponse) {
+    case Event(msg: StackDeletedResponse, data: StackIdAndName) =>
       context.unwatch(sender())
-      context.stop(sender())
-
       context.parent ! LogMessage(s"Stack has been requested to be deleted. Monitoring delete progress")
-      val stackDeleteMonitor = context.actorOf(StackDeleteCompleteMonitor.props(credentials, stackId, stackName))
-      context.watch(stackDeleteMonitor)
+      val monitor = context.actorOf(StackDeleteCompleteMonitor.props(credentials, data.stackId, data.stackName), "stackDeleteMonitor")
+      context.watch(monitor)
+      goto(AwaitingStackDeleteCompleted)
+  }
 
-    case msg: StackDeleteCompleted =>
+  when(AwaitingStackDeleteCompleted) {
+    case Event(msg: StackDeleteCompleted, _) =>
       context.unwatch(sender())
-      context.stop(sender())
-
       context.parent ! LogMessage(s"Stack has reached DELETE_COMPLETE status.")
       context.parent ! DeleteExistingStackFinished
-
-    case msg: Log =>
-      context.parent forward msg
-
-    case Terminated(actorRef) =>
-      context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! WorkflowManager.StepFailed("Failed to tear down the old stack and unfreeze the new one. See server log for details.")
+      stop()
   }
-}
 
-object DeleteStackSupervisor {
+  whenUnhandled {
+    case Event(msg: Log, _) =>
+      context.parent forward msg
+      stay()
 
-  case class DeleteExistingStack(stackName: String)
+    case Event(Terminated(actorRef), _) =>
+      context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
+      context.parent ! WorkflowManager.StepFailed("Failed to delete a stack")
+      stop()
+  }
 
-  case object DeleteExistingStackFinished
+  onTermination {
+    case StopEvent(FSM.Failure(cause), state, data) =>
+      log.error(s"FSM has failed... $cause $state $data")
+  }
 
-  def props(credentials: AWSCredentials): Props = Props(new DeleteStackSupervisor(credentials))
+  initialize()
 }
