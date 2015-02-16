@@ -8,7 +8,7 @@ import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStack, DeleteE
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinished}
-import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
+import actors.workflow.steps.ValidateAndFreezeSupervisor._
 import actors.workflow.steps._
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
@@ -109,13 +109,11 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
       val stackName = deploy.stackPath.replaceAll("/", "-")
-      validateAndFreezeSupervisor ! VerifyAndFreezeOldStack(stackName)
+      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(stackName)
 
-    case NoOldStackExists =>
+    case NoExistingStacksExist =>
       context.unwatch(sender())
-      context.stop(sender())
       logMessage("No existing stacks found. First-time stack launch")
-
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)
       workflowStepData.get("stackFileContents") match {
@@ -127,8 +125,6 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
 
     case msg: VerifiedAndStackFrozen =>
       context.unwatch(sender())
-      context.stop(sender())
-
       workflowStepData = workflowStepData + ("oldStackName" -> msg.oldStackName)
       val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
       context.watch(stackLauncher)
