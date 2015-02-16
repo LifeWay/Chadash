@@ -4,7 +4,7 @@ import sbtbuildinfo.Plugin._
 
 name := "chadash"
 version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
-scalaVersion := "2.11.4"
+scalaVersion := "2.11.5"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
@@ -12,9 +12,11 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
 libraryDependencies ++= Seq(
   ws,
   filters,
-  "com.amazonaws" % "aws-java-sdk" % "1.9.13",
+  "com.amazonaws" % "aws-java-sdk" % "1.9.19",
   "com.google.code.findbugs" % "jsr305" % "3.0.0",
-  "commons-io" % "commons-io" % "2.4"
+  "commons-io" % "commons-io" % "2.4",
+  "com.typesafe.akka" %% "akka-actor" % "2.3.9",
+  "com.typesafe.akka" %% "akka-slf4j" % "2.3.9"
 )
 
 //----
