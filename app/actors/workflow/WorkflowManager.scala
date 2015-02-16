@@ -4,7 +4,7 @@ import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStackFinished, DeleteExistingStack}
 import actors.WorkflowLog._
-import actors.workflow.steps.LoadStackSupervisor.{LoadStackQuery, LoadStackResponse}
+import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
 import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
@@ -100,11 +100,12 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
 
       val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(awsCreds), "loadStackSupervisor")
       context.watch(loadStackSupervisor)
-      loadStackSupervisor ! LoadStackQuery(stackBucket, deploy.stackPath)
+      loadStackSupervisor ! LoadStackCommand(stackBucket, deploy.stackPath)
 
     case msg: LoadStackResponse =>
-      workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
+      context.unwatch(sender())
       logMessage("Stack JSON data loaded. Querying for existing stack")
+      workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
       val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
       val stackName = deploy.stackPath.replaceAll("/", "-")

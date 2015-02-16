@@ -1,43 +1,69 @@
 package actors.workflow.steps
 
-import actors.WorkflowLog.LogMessage
+import actors.WorkflowLog.{Log, LogMessage}
+import actors.workflow.steps.LoadStackSupervisor.{LoadStackData, LoadStackStates}
 import actors.workflow.tasks.StackLoader
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
-import akka.actor.{Actor, ActorLogging, Props, Terminated}
+import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import play.api.libs.json.JsValue
 
-class LoadStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLogging with AWSSupervisorStrategy {
+class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStates, LoadStackData] with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.LoadStackSupervisor._
 
-  override def receive: Receive = {
-    case msg: LoadStackQuery =>
+  startWith(AwaitingLoadStackCommand, Uninitialized)
 
+  when(AwaitingLoadStackCommand) {
+    case Event(msg: LoadStackCommand, _) =>
       val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName))
       context.watch(stackLoaderActor)
-
       stackLoaderActor ! LoadStack(msg.stackPath)
-      context.become(stepInProcess)
+      goto(AwaitingStackData)
   }
 
-  def stepInProcess: Receive = {
-    case StackLoaded(x) =>
-      context.parent ! LoadStackResponse(x)
-      context.unbecome()
+  when(AwaitingStackData) {
+    case Event(StackLoaded(data), _) =>
+      context.unwatch(sender())
+      context.stop(sender())
+      context.parent ! LoadStackResponse(data)
+      stop()
+  }
 
-    case Terminated(actorRef) =>
-      context.parent ! LogMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+  whenUnhandled {
+    case Event(msg: Log, _) =>
+      context.parent forward msg
+      stay()
+
+    case Event(Terminated(actorRef), _) =>
+      context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
       context.parent ! WorkflowManager.StepFailed("Failed to load the stack file, see server log.")
+      stop()
   }
+
+  onTermination {
+    case StopEvent(FSM.Failure(cause), state, data) =>
+      log.error(s"FSM has failed... $cause $state $data")
+  }
+
+  initialize()
 }
 
 object LoadStackSupervisor {
-
-  case class LoadStackQuery(bucketName: String, stackPath: String)
-
+  //Interaction Messages
+  sealed trait LoadStackMessage
+  case class LoadStackCommand(bucketName: String, stackPath: String)
   case class LoadStackResponse(stackData: JsValue)
+
+  //FSM: States
+  sealed trait LoadStackStates
+  case object AwaitingLoadStackCommand extends LoadStackStates
+  case object AwaitingStackData extends LoadStackStates
+
+  //FSM: Data
+  sealed trait LoadStackData
+  case object Uninitialized extends LoadStackData
 
   def props(credentials: AWSCredentials): Props = Props(new LoadStackSupervisor(credentials))
 }
