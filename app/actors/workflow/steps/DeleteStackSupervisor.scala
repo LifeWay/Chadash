@@ -10,31 +10,7 @@ import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-
-object DeleteStackSupervisor {
-  //Interaction Messages
-  sealed trait DeleteStackMessage
-  case class DeleteExistingStack(stackName: String) extends DeleteStackMessage
-  case object DeleteExistingStackFinished extends DeleteStackMessage
-
-  //FSM: States
-  sealed trait DeleteStackStates
-  case object AwaitingDeleteStackCommand extends DeleteStackStates
-  case object AwaitingStackIdResponse extends DeleteStackStates
-  case object AwaitingStackDeletedResponse extends DeleteStackStates
-  case object AwaitingStackDeleteCompleted extends DeleteStackStates
-
-  //FSM: Data
-  sealed trait DeleteStackData
-  case object Uninitialized extends DeleteStackData
-  case class StackId(stackId: String) extends DeleteStackData
-  case class StackName(stackName: String) extends DeleteStackData
-  case class StackIdAndName(stackId: String, stackName: String) extends DeleteStackData
-
-  def props(credentials: AWSCredentials): Props = Props(new DeleteStackSupervisor(credentials))
-}
-
-class DeleteStackSupervisor(credentials: AWSCredentials) extends Actor with FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy  {
+class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy  {
 
   import actors.workflow.steps.DeleteStackSupervisor._
 
@@ -47,7 +23,6 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends Actor with FSM[
       stackInfo ! StackIdQuery(msg.stackName)
       goto(AwaitingStackIdResponse) using StackName(msg.stackName)
   }
-
 
   when(AwaitingStackIdResponse) {
     case Event(msg: StackInfo.StackIdResponse, data: StackName) =>
@@ -93,4 +68,27 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends Actor with FSM[
   }
 
   initialize()
+}
+
+object DeleteStackSupervisor {
+  //Interaction Messages
+  sealed trait DeleteStackMessage
+  case class DeleteExistingStack(stackName: String) extends DeleteStackMessage
+  case object DeleteExistingStackFinished extends DeleteStackMessage
+
+  //FSM: States
+  sealed trait DeleteStackStates
+  case object AwaitingDeleteStackCommand extends DeleteStackStates
+  case object AwaitingStackIdResponse extends DeleteStackStates
+  case object AwaitingStackDeletedResponse extends DeleteStackStates
+  case object AwaitingStackDeleteCompleted extends DeleteStackStates
+
+  //FSM: Data
+  sealed trait DeleteStackData
+  case object Uninitialized extends DeleteStackData
+  case class StackId(stackId: String) extends DeleteStackData
+  case class StackName(stackName: String) extends DeleteStackData
+  case class StackIdAndName(stackId: String, stackName: String) extends DeleteStackData
+
+  def props(credentials: AWSCredentials): Props = Props(new DeleteStackSupervisor(credentials))
 }

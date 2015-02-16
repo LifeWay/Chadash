@@ -1,7 +1,7 @@
 package actors.workflow.steps
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.steps.HealthyInstanceSupervisor.{HealthStatusMet, MonitorASGForELBHealth}
+import actors.workflow.steps.HealthyInstanceSupervisor.{CheckHealth, HealthStatusMet}
 import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
 import actors.workflow.tasks.StackCreateCompleteMonitor.StackCreateCompleted
@@ -118,7 +118,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends Actor with ActorLo
 
       val asgELBDetailQuery = context.actorOf(HealthyInstanceSupervisor.props(credentials, msg.size, msg.asgName), "healthyInstanceSupervisor")
       context.watch(asgELBDetailQuery)
-      asgELBDetailQuery ! MonitorASGForELBHealth
+      asgELBDetailQuery ! CheckHealth
 
     case HealthStatusMet =>
       context.unwatch(sender())
