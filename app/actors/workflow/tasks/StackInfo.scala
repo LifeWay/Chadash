@@ -8,7 +8,7 @@ import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 
 import scala.collection.JavaConverters._
 
-class StackInfo(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackInfo._
 
@@ -25,7 +25,7 @@ class StackInfo(credentials: AWSCredentials) extends Actor with AWSRestartableAc
           val stackOutputs = stacksResults.seq(0).getOutputs.asScala.toSeq
           val asgOutput = stackOutputs.filter(p => p.getOutputKey.equals("ChadashASG"))
           asgOutput.length match {
-            case 1 => context.sender() ! StackASGNameResponse(asgOutput(0).getOutputValue)
+            case 1 => context.parent ! StackASGNameResponse(asgOutput(0).getOutputValue)
             case _ => throw new UnsupportedOperationException("missing ChadashASG output")
           }
         case _ => throw new UnsupportedOperationException("expected only one stack!")
@@ -41,7 +41,7 @@ class StackInfo(credentials: AWSCredentials) extends Actor with AWSRestartableAc
       stacksResults.length match {
         case 1 =>
           val stackId = stacksResults.seq(0).getStackId
-          context.sender() ! StackIdResponse(stackId)
+          context.parent ! StackIdResponse(stackId)
         case _ => throw new UnsupportedOperationException("expected only one stack!")
       }
   }

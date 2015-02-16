@@ -1,6 +1,6 @@
 package actors.workflow
 
-import akka.actor.ActorLogging
+import akka.actor.{Actor, ActorLogging}
 
 import scala.concurrent.duration._
 
@@ -16,11 +16,9 @@ import scala.concurrent.duration._
  * skipping a beat.
  *
  */
-trait AWSRestartableActor extends ActorLogging {
-  this: akka.actor.Actor =>
-
+trait AWSRestartableActor extends Actor with ActorLogging {
   override def postRestart(reason: Throwable): Unit = {
-    this.postRestart(reason)
+    super.postRestart(reason)
     log.info(s"Restarted because of ${reason.getMessage}")
   }
 

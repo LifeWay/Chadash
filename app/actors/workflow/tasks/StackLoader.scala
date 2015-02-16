@@ -9,7 +9,7 @@ import org.apache.commons.io.IOUtils
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 
-class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor with AWSRestartableActor with ActorLogging {
+class StackLoader(credentials: AWSCredentials, bucketName: String) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackLoader._
 
@@ -19,7 +19,7 @@ class StackLoader(credentials: AWSCredentials, bucketName: String) extends Actor
       val stackObject: S3Object = s3Client.getObject(bucketName, s"chadash-stacks/${msg.stackPath}.json")
       val stackFileJson = Json.parse(IOUtils.toByteArray(stackObject.getObjectContent))
 
-      context.sender() ! StackLoaded(stackFileJson)
+      context.parent ! StackLoaded(stackFileJson)
   }
 }
 

@@ -8,7 +8,7 @@ import com.amazonaws.services.autoscaling.model.{SetDesiredCapacityRequest, Desc
 
 import scala.collection.JavaConverters._
 
-class ASGSize(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class ASGSize(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.ASGSize._
 
@@ -19,7 +19,7 @@ class ASGSize(credentials: AWSCredentials) extends Actor with AWSRestartableActo
 
       val awsClient = new AmazonAutoScalingClient(credentials)
       val result = awsClient.describeAutoScalingGroups(asgFilter).getAutoScalingGroups.asScala.toSeq
-      context.sender() ! ASGDesiredSizeResult(msg.asgName, result(0).getDesiredCapacity)
+      context.parent ! ASGDesiredSizeResult(msg.asgName, result(0).getDesiredCapacity)
 
     case msg: ASGSetDesiredSizeCommand =>
       val desiredCapRequest = new SetDesiredCapacityRequest()
@@ -28,7 +28,7 @@ class ASGSize(credentials: AWSCredentials) extends Actor with AWSRestartableActo
 
       val awsClient = new AmazonAutoScalingClient(credentials)
       awsClient.setDesiredCapacity(desiredCapRequest)
-      context.sender() ! ASGDesiredSizeSet(msg.asgName, msg.size)
+      context.parent ! ASGDesiredSizeSet(msg.asgName, msg.size)
   }
 }
 

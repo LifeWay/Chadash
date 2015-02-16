@@ -8,7 +8,7 @@ import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
 
-class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackCreator._
 
@@ -38,7 +38,7 @@ class StackCreator(credentials: AWSCredentials) extends Actor with AWSRestartabl
       val awsClient = new AmazonCloudFormationClient(credentials)
       awsClient.createStack(createStackRequest)
 
-      context.sender() ! StackCreateRequestCompleted(stackNameWithVersion)
+      context.parent ! StackCreateRequestCompleted(stackNameWithVersion)
   }
 }
 

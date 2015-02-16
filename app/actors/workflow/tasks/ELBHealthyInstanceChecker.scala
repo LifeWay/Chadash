@@ -8,7 +8,7 @@ import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealth
 
 import scala.collection.JavaConverters._
 
-class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.ELBHealthyInstanceChecker._
 
@@ -26,9 +26,9 @@ class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends Actor with 
 
       unhealthyInstances.size match {
         case i if i > 0 =>
-          context.sender() ! ELBInstanceListNotHealthy(i, msg.elbName)
+          context.parent ! ELBInstanceListNotHealthy(i, msg.elbName)
         case i if i == 0 =>
-          context.sender() ! ELBInstanceListAllHealthy
+          context.parent ! ELBInstanceListAllHealthy(msg.elbName)
       }
   }
 }
@@ -39,7 +39,7 @@ object ELBHealthyInstanceChecker {
 
   case class ELBInstanceListNotHealthy(unhealthyInstances: Int, elbName: String)
 
-  case object ELBInstanceListAllHealthy
+  case class ELBInstanceListAllHealthy(elbName: String)
 
   def props(credentials: AWSCredentials): Props = Props(new ELBHealthyInstanceChecker(credentials))
 }

@@ -8,7 +8,7 @@ import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
 
 import scala.collection.JavaConverters._
 
-class FreezeASG(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class FreezeASG(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.FreezeASG._
 
@@ -21,7 +21,7 @@ class FreezeASG(credentials: AWSCredentials) extends Actor with AWSRestartableAc
 
       val awsClient = new AmazonAutoScalingClient(credentials)
       awsClient.suspendProcesses(suspendProcessesRequest)
-      context.sender() ! FreezeASGCompleted(query.asgName)
+      context.parent ! FreezeASGCompleted(query.asgName)
   }
 }
 

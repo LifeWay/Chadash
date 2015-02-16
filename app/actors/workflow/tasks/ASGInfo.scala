@@ -8,7 +8,7 @@ import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 
 import scala.collection.JavaConverters._
 
-class ASGInfo(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.ASGInfo._
 
@@ -30,7 +30,10 @@ class ASGInfo(credentials: AWSCredentials) extends Actor with AWSRestartableActo
 
       val elbNames = asg.getLoadBalancerNames.asScala.toSeq
 
-      context.sender() ! ASGInServiceInstancesAndELBSResult(elbNames, instanceIds)
+      context.parent ! ASGInServiceInstancesAndELBSResult(elbNames, instanceIds)
+
+    case m: Any =>
+      log.debug(s"unhandled message: ${m.toString}")
   }
 }
 

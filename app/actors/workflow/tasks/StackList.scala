@@ -8,7 +8,7 @@ import com.amazonaws.services.cloudformation.model.ListStacksRequest
 
 import scala.collection.JavaConverters._
 
-class StackList(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackList._
 
@@ -28,7 +28,7 @@ class StackList(credentials: AWSCredentials) extends Actor with AWSRestartableAc
       val filteredResults = results.filter(p => p.getStackName.startsWith(s"chadash-${query.stackName}"))
       val filteredStackNames = filteredResults.foldLeft(Seq.empty[String])((sum, i) => sum :+ i.getStackName)
 
-      context.sender() ! FilteredStacks(filteredStackNames)
+      context.parent ! FilteredStacks(filteredStackNames)
   }
 }
 

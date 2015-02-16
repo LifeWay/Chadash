@@ -6,7 +6,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.DeleteStackRequest
 
-class DeleteStack(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class DeleteStack(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.DeleteStack._
 
@@ -20,7 +20,7 @@ class DeleteStack(credentials: AWSCredentials) extends Actor with AWSRestartable
       val awsClient = new AmazonCloudFormationClient(credentials)
       awsClient.deleteStack(delStackReq)
 
-      context.sender() ! StackDeletedResponse(msg.stackName)
+      context.parent ! StackDeletedResponse(msg.stackName)
   }
 }
 

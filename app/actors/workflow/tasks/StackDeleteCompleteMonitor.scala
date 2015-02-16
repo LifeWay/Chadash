@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class StackDeleteCompleteMonitor(credentials: AWSCredentials, stackId: String, stackName: String) extends Actor with AWSRestartableActor with ActorLogging {
+class StackDeleteCompleteMonitor(credentials: AWSCredentials, stackId: String, stackName: String) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackDeleteCompleteMonitor._
 

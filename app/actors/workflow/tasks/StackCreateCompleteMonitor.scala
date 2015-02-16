@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 
-class StackCreateCompleteMonitor(credentials: AWSCredentials, stackName: String) extends Actor with AWSRestartableActor with ActorLogging {
+class StackCreateCompleteMonitor(credentials: AWSCredentials, stackName: String) extends AWSRestartableActor {
 
   import actors.workflow.tasks.StackCreateCompleteMonitor._
 

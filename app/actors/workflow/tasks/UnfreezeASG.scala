@@ -6,7 +6,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.autoscaling.model.ResumeProcessesRequest
 
-class UnfreezeASG(credentials: AWSCredentials) extends Actor with AWSRestartableActor with ActorLogging {
+class UnfreezeASG(credentials: AWSCredentials) extends AWSRestartableActor {
 
   import actors.workflow.tasks.UnfreezeASG._
 
@@ -18,7 +18,7 @@ class UnfreezeASG(credentials: AWSCredentials) extends Actor with AWSRestartable
 
       val awsClient = new AmazonAutoScalingClient(credentials)
       awsClient.resumeProcesses(resumeProcessesRequest)
-      context.sender() ! UnfreezeASGCompleted(msg.asgName)
+      context.parent ! UnfreezeASGCompleted(msg.asgName)
   }
 }
 
