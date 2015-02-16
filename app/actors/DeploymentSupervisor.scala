@@ -3,7 +3,7 @@ package actors
 
 import actors.WorkflowLog.{ClearLogAndAvoidDeath, DeployStatusSubscribeRequest}
 import actors.workflow.WorkflowManager
-import actors.workflow.WorkflowManager.{DeployCompleted, StackDeleteCompleted, StartDeploy}
+import actors.workflow.WorkflowManager.{DeployFailed, DeployCompleted, StackDeleteCompleted, StartDeploy}
 import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
@@ -61,7 +61,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
     case DeployCompleted | StackDeleteCompleted =>
       stopChild()
 
-    case DeployFailed =>
+    case msg: DeployFailed =>
       log.error(s"Deployment failed for this workflow: ${sender().path.name}")
       stopChild()
 
@@ -100,8 +100,6 @@ object DeploymentSupervisor {
   case object Started
 
   case object WorkflowInProgress
-
-  case class DeployFailed(logRef: ActorRef)
 
   case object NoWorkflow
 

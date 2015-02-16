@@ -81,12 +81,12 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
     case msg: StepFailed =>
       logMessage(s"The following child has failed: ${context.sender().path.name} for the following reason: ${msg.reason}")
       context.unwatch(sender())
-      context.parent ! DeploymentSupervisor.DeployFailed
+      context.parent ! DeployFailed(logActor)
       logActor ! WorkflowFailed
 
     case Terminated(actorRef) =>
       logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! DeploymentSupervisor.DeployFailed
+      context.parent ! DeployFailed(logActor)
       logActor ! WorkflowFailed
 
     case msg: Any =>
@@ -167,6 +167,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       logMessage(msg.message)
 
     case msg: StepFailed =>
+      context.unwatch(sender())
       logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
       failed()
 
@@ -179,7 +180,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
   }
 
   def failed() = {
-    context.parent ! DeploymentSupervisor.DeployFailed(logActor)
+    context.parent ! DeployFailed(logActor)
     logActor ! WorkflowFailed
   }
 
@@ -196,7 +197,7 @@ object WorkflowManager {
 
   case object DeploySuccessful
 
-  case object DeployFailed
+  case class DeployFailed(logRef: ActorRef)
 
   case object DeployCompleted
 
