@@ -2,14 +2,14 @@ package actors.workflow
 
 import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
-import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStackFinished, DeleteExistingStack}
 import actors.WorkflowLog._
+import actors._
+import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStack, DeleteExistingStackFinished}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
-import actors.workflow.steps.TearDownSupervisor.{TearDownFinished, StartTearDown}
+import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinished}
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{NoOldStackExists, VerifiedAndStackFrozen, VerifyAndFreezeOldStack}
 import actors.workflow.steps._
-import actors._
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.ConfigFactory
@@ -155,7 +155,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       context.watch(tearDownSupervisor)
 
       workflowStepData.get("oldStackName") match {
-        case Some(oldStackName) => tearDownSupervisor ! StartTearDown(oldStackName, msg.newAsgName)
+        case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, msg.newAsgName)
         case None => throw new Exception("No old stack name found when attempting to tear down old stack")
       }
 
