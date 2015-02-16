@@ -17,7 +17,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStat
 
   when(AwaitingLoadStackCommand) {
     case Event(msg: LoadStackCommand, _) =>
-      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName))
+      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName), "loadStackFile")
       context.watch(stackLoaderActor)
       stackLoaderActor ! LoadStack(msg.stackPath)
       goto(AwaitingStackData)

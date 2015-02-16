@@ -1,6 +1,6 @@
 package actors
 
-import akka.actor.{Props, ActorSystem}
+import akka.actor.{DeadLetter, Props, ActorSystem}
 import com.typesafe.config.ConfigFactory
 
 object ChadashSystem {
@@ -10,5 +10,9 @@ object ChadashSystem {
 
   val credentials = system.actorOf(Props[AmazonCredentials], "awsCredentials")
   credentials ! AmazonCredentials.Initialize
+
   val deploymentSupervisor = system.actorOf(Props[DeploymentSupervisor], "deploymentSupervisor")
+  val deadLetterHandler = system.actorOf(Props[DeadLetterHandler], "deadLetterHandler")
+
+  system.eventStream.subscribe(deadLetterHandler, classOf[DeadLetter])
 }
