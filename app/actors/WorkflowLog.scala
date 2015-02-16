@@ -46,13 +46,15 @@ class WorkflowLog extends Actor with ActorLogging {
 
     case logItem: LogMessage => logger(logItem)
 
-    case WorkflowFailed =>
+    case msg @ WorkflowFailed =>
       for (x <- workflow) yield context.unwatch(x)
-      logger(WorkflowFailed)
+      context.system.scheduler.scheduleOnce(15.minutes, self, TimeToDie)
+      logger(msg)
 
-    case WorkflowSucceeded =>
+    case msg @ WorkflowSucceeded =>
       for (x <- workflow) yield context.unwatch(x)
-      logger(WorkflowFailed)
+      context.system.scheduler.scheduleOnce(15.minutes, self, TimeToDie)
+      logger(msg)
 
     case x: DeployStatusSubscribeRequest => sender() ! SubscribeToMe(self)
 
