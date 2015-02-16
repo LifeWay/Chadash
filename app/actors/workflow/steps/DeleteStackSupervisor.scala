@@ -60,6 +60,10 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
       context.parent ! WorkflowManager.StepFailed("Failed to delete a stack")
       stop()
+
+    case Event(msg: Any, _) =>
+      log.debug(s"Unhandled message: ${msg.toString}")
+      stop()
   }
 
   onTermination {

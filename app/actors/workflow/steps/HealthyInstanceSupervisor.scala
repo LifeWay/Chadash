@@ -84,8 +84,6 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
   onTermination {
     case StopEvent(FSM.Failure(cause), state, data) =>
       log.error(s"FSM has failed... $cause $state $data")
-    case StopEvent(_, _, _) =>
-      log.debug("FSM has shutdown")
   }
 
   initialize()

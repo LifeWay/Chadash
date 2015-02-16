@@ -40,6 +40,10 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStat
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
       context.parent ! WorkflowManager.StepFailed("Failed to load the stack file, see server log.")
       stop()
+
+    case Event(msg: Any, _) =>
+      log.debug(s"Unhandled message: ${msg.toString}")
+      stop()
   }
 
   onTermination {
