@@ -96,6 +96,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       }
       goto(AwaitingStackLaunched)
 
+    //TODO: if in this state, and we fail, we want to unfreeze the old. This state change should be TIMED (use a timer and not a timeout)
     case Event(VerifiedAndStackFrozen(oldStackName, oldASGName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
       context.unwatch(sender())
 
@@ -111,13 +112,14 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
   }
 
   when(AwaitingStackLaunched) {
-    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_,_,_)) =>
+    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_, _, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage(s"The first version of this stack has been successfully deployed. Stack Name: $newStackName")
       logActor ! WorkflowLog.WorkflowCompleted
       context.parent ! WorkflowCompleted
       stop()
 
+    //TODO: if in this state, and we fail, we want to un-deploy the new version (delete it), and then unfreeze the old. This state change should be TIMED (use a timer and not a timeout)
     case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
       context.unwatch(sender())
       logActor ! LogMessage("The next version of the stack has been successfully deployed.")
@@ -131,6 +133,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
   }
 
   when(AwaitingOldStackTearDown) {
+    //TODO: if in this state, and we fail, AWS has all sorts of problems, but - we should at least unfreeze the new version
     case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
@@ -148,17 +151,14 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       context.unwatch(sender())
       logActor ! LogMessage(s"The following step has failed: ${context.sender()} for the following reason: ${msg.reason}")
       failed()
-      stop()
 
     case Event(Terminated(actorRef), _) =>
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
       failed()
-      stop()
 
     case Event(msg: Any, data: WorkflowData) =>
       log.debug(s"Unhandled message: ${msg.toString} Data: ${data.toString}")
       failed()
-      stop()
   }
 
   onTermination {
@@ -169,6 +169,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
   def failed() = {
     logActor ! WorkflowLog.WorkflowFailed
     context.parent ! WorkflowFailed(logActor)
+    stop()
   }
 
   initialize()
