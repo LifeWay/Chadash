@@ -1,16 +1,16 @@
 package actors.workflow.steps
 
 import actors.WorkflowLog.{Log, LogMessage}
-import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteStackData, DeleteStackStates}
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
 import actors.workflow.tasks.StackInfo.StackIdQuery
 import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo}
+import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy  {
+class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.DeleteStackSupervisor._
 
