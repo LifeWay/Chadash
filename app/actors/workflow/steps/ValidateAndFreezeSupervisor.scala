@@ -80,7 +80,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
 
     case Event(Terminated(actorRef), _) =>
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
-      context.parent ! WorkflowManager.StepFailed("Failed to delete a stack")
+      context.parent ! WorkflowManager.StepFailed("Failed to validate stack and freeze old ASG")
       stop()
 
     case Event(msg: Any, _) =>

@@ -133,7 +133,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
 
     case Event(Terminated(actorRef), _) =>
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
-      context.parent ! WorkflowManager.StepFailed("Failed to delete a stack")
+      context.parent ! WorkflowManager.StepFailed("Failed to launch new stack")
       stop()
 
     case Event(msg: Any, data: NewStackData) =>

@@ -77,7 +77,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
 
     case Event(Terminated(actorRef), _) =>
       context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
-      context.parent ! WorkflowManager.StepFailed("Failed to delete a stack")
+      context.parent ! WorkflowManager.StepFailed("Failed to tear down old stack and unfreeze new ASG")
       stop()
 
     case Event(msg: Any, _) =>
