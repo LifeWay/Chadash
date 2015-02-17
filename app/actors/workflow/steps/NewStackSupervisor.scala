@@ -25,27 +25,28 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
       val stackCreator = context.actorOf(StackCreator.props(credentials), "stackLauncher")
       context.watch(stackCreator)
       stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent)
-      goto(AwaitingStackCreatedResponse)
+      goto(AwaitingStackCreatedResponse) using FirstTimeStack(msg.newStackName)
 
     case Event(msg: NewStackUpgradeLaunchCommand, Uninitialized) =>
       val stackCreator = context.actorOf(StackCreator.props(credentials), "stackLauncher")
       context.watch(stackCreator)
       stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent)
-      goto(AwaitingStackCreatedResponse) using UpgradeOldStackData(msg.oldStackASG, msg.oldStackName)
+      goto(AwaitingStackCreatedResponse) using UpgradeOldStackData(msg.oldStackASG, msg.oldStackName, msg.newStackName)
   }
 
   when(AwaitingStackCreatedResponse) {
-    case Event(msg: StackCreateRequestCompleted, data: NewStackData) =>
+    case Event(StackCreateRequestCompleted, data: FirstStepData) =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"New stack has been created. Stack Name: ${msg.stackName}")
+
+      context.parent ! LogMessage(s"New stack has been created. Stack Name: ${data.newStackName}")
       context.parent ! LogMessage("Waiting for new stack to finish launching")
 
-      val stackCreateMonitor = context.actorOf(StackCreateCompleteMonitor.props(credentials, msg.stackName))
+      val stackCreateMonitor = context.actorOf(StackCreateCompleteMonitor.props(credentials, data.newStackName))
       context.watch(stackCreateMonitor)
 
       data match {
-        case stackData: UpgradeOldStackData => goto(AwaitingStackCreateCompleted) using UpgradeOldStackWithNewStackName(stackData.oldStackASG, stackData.oldStackName, msg.stackName)
+        case stackData: UpgradeOldStackData => goto(AwaitingStackCreateCompleted) using UpgradeOldStackData(stackData.oldStackASG, stackData.oldStackName, stackData.newStackName)
         case _ => goto(AwaitingStackCreateCompleted)
       }
   }
@@ -57,7 +58,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
       context.parent ! LogMessage(s"New stack has reached CREATE_COMPLETE status. ${msg.stackName}")
 
       data match {
-        case stackData: UpgradeOldStackWithNewStackName =>
+        case stackData: UpgradeOldStackData =>
           val asgFetcher = context.actorOf(StackInfo.props(credentials), "getASGName")
           context.watch(asgFetcher)
           asgFetcher ! StackASGNameQuery(msg.stackName)
@@ -69,7 +70,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingStackASGName) {
-    case Event(msg: StackASGNameResponse, data: UpgradeOldStackWithNewStackName) =>
+    case Event(msg: StackASGNameResponse, data: UpgradeOldStackData) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"ASG for new stack found ${msg.asgName}, Freezing alarm and scheduled based autoscaling on the new ASG")
@@ -77,11 +78,11 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
       val freezeNewASG = context.actorOf(FreezeASG.props(credentials))
       context.watch(freezeNewASG)
       freezeNewASG ! FreezeASGCommand(msg.asgName)
-      goto(AwaitingFreezeASGResponse) using UpgradeOldStackWithNewStackAndASG(data.oldStackASG, data.oldStackName, data.newStackName, msg.asgName)
+      goto(AwaitingFreezeASGResponse) using UpgradeOldStackDataWithASG(data.oldStackASG, data.oldStackName, data.newStackName, msg.asgName)
   }
 
   when(AwaitingFreezeASGResponse) {
-    case Event(msg: FreezeASGCompleted, UpgradeOldStackWithNewStackAndASG(oldAsgName, _, _, _)) =>
+    case Event(msg: FreezeASGCompleted, UpgradeOldStackDataWithASG(oldAsgName, _, _, _)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage("New ASG Frozen, Querying old stack size")
@@ -93,7 +94,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingASGDesiredSizeResult) {
-    case Event(msg: ASGDesiredSizeResult, UpgradeOldStackWithNewStackAndASG(_, _, _, newAsgName)) =>
+    case Event(msg: ASGDesiredSizeResult, UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"Old ASG desired instances: ${msg.size}, setting new ASG to ${msg.size} desired instances")
@@ -105,7 +106,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingASGDesiredSizeSetResponse) {
-    case Event(msg: ASGDesiredSizeSet, UpgradeOldStackWithNewStackAndASG(_, _, _, _)) =>
+    case Event(msg: ASGDesiredSizeSet, UpgradeOldStackDataWithASG(_, _, _, _)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
@@ -117,7 +118,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingHealthyNewASG) {
-    case Event(HealthStatusMet, UpgradeOldStackWithNewStackAndASG(_, _, _, newAsgName)) =>
+    case Event(HealthStatusMet, UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"New ASG up and reporting healthy in the ELB(s)")
@@ -169,10 +170,13 @@ object NewStackSupervisor {
 
   //FSM: Data
   sealed trait NewStackData
+  sealed trait FirstStepData extends NewStackData {
+    def newStackName: String
+  }
   case object Uninitialized extends NewStackData
-  case class UpgradeOldStackData(oldStackASG: String, oldStackName: String) extends NewStackData
-  case class UpgradeOldStackWithNewStackName(oldStackASG: String, oldStackName: String, newStackName: String) extends NewStackData
-  case class UpgradeOldStackWithNewStackAndASG(oldStackASG: String, oldStackName: String, newStackName: String, newStackASG: String) extends NewStackData
+  case class FirstTimeStack(newStackName: String) extends NewStackData with FirstStepData
+  case class UpgradeOldStackData(oldStackASG: String, oldStackName: String, newStackName: String) extends NewStackData with FirstStepData
+  case class UpgradeOldStackDataWithASG(oldStackASG: String, oldStackName: String, newStackName: String, newStackASG: String) extends NewStackData
 
   def props(credentials: AWSCredentials): Props = Props(new NewStackSupervisor(credentials))
 }

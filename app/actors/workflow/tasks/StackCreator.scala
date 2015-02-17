@@ -14,7 +14,6 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
 
   override def receive: Receive = {
     case launchCommand: StackCreateCommand =>
-      val stackNameWithVersion = DeploymentSupervisor.stackNameBuilder(launchCommand.stackName, launchCommand.version)
       val appVersionTag = new Tag()
         .withKey("ApplicationVersion")
         .withValue(launchCommand.version)
@@ -30,7 +29,7 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
 
       val createStackRequest = new CreateStackRequest()
         .withTemplateBody(launchCommand.stackData.toString())
-        .withStackName(stackNameWithVersion)
+        .withStackName(launchCommand.stackName)
         .withTags(appVersionTag)
         .withParameters(params.toArray: _*)
 
@@ -38,7 +37,7 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
       val awsClient = new AmazonCloudFormationClient(credentials)
       awsClient.createStack(createStackRequest)
 
-      context.parent ! StackCreateRequestCompleted(stackNameWithVersion)
+      context.parent ! StackCreateRequestCompleted
   }
 }
 
@@ -46,7 +45,7 @@ object StackCreator {
 
   case class StackCreateCommand(stackName: String, imageId: String, version: String, stackData: JsValue)
 
-  case class StackCreateRequestCompleted(stackName: String)
+  case object StackCreateRequestCompleted
 
   def props(credentials: AWSCredentials): Props = Props(new StackCreator(credentials))
 }
