@@ -1,9 +1,9 @@
 package actors
 
 
-import actors.WorkflowLog.{ClearLogAndAvoidDeath, DeployStatusSubscribeRequest}
+import actors.WorkflowLog.{WorkflowCompleted, ClearLogAndAvoidDeath, DeployStatusSubscribeRequest}
 import actors.workflow.WorkflowManager
-import actors.workflow.WorkflowManager.{DeployFailed, DeployCompleted, StackDeleteCompleted, StartDeploy}
+import actors.workflow.WorkflowManager._
 import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
@@ -27,16 +27,16 @@ class DeploymentSupervisor extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case deploy: Deploy =>
-      val actorName = stackNameBuilder(deploy)
-      context.child(actorName) match {
+    case deployRequest: DeployRequest =>
+      val deploy: Deploy = deployBuilder(deployRequest)
+      context.child(deploy.stackName) match {
         case Some(x) =>
           sender ! WorkflowInProgress
         case None =>
           val deploymentLog = getLogActor(deploy)
-          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), actorName)
+          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), deploy.stackName)
           context.watch(workflowActor)
-          workflowActor forward StartDeploy(deploy)
+          workflowActor forward StartDeployWorkflow(deploy)
       }
 
     case msg: DeleteStack =>
@@ -48,7 +48,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
           val deploymentLog = getLogActor(msg.stackPath, msg.appVersion)
           val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), stackName)
           context.watch(workflowActor)
-          workflowActor forward DeleteExistingStack(stackName)
+          workflowActor forward StartDeleteWorkflow(stackName)
         }
       }
 
@@ -58,12 +58,12 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         case None => sender() ! NoWorkflow
       }
 
-    case DeployCompleted | StackDeleteCompleted =>
-      stopChild()
+    case WorkflowManager.WorkflowCompleted =>
+      context.unwatch(sender())
 
-    case msg: DeployFailed =>
+    case msg: WorkflowManager.WorkflowFailed =>
+      context.unwatch(sender())
       log.error(s"Deployment failed for this workflow: ${sender().path.name}")
-      stopChild()
 
     case Terminated(actorRef) =>
       log.error(s"One of our workflow supervisors has died unexpectedly...the deployment has failed and needs a human ${actorRef.toString()}")
@@ -80,34 +80,24 @@ class DeploymentSupervisor extends Actor with ActorLogging {
         context.actorOf(WorkflowLog.props(), logNameBuilder(stackPath, appVersion))
     }
   }
-
-  def stopChild() = {
-    context.unwatch(sender())
-    context.stop(sender())
-  }
 }
 
 object DeploymentSupervisor {
 
-  case class Deploy(stackPath: String, appVersion: String, amiId: String)
-
+  case class DeployRequest(stackPath: String, appVersion: String, amiId: String)
+  case class Deploy(stackPath: String, stackName: String, appVersion: String, amiId: String)
   case class DeployStatusQuery(stackPath: String)
-
   case class DeployWorkflow(workflowActor: ActorRef)
-
   case class DeleteStack(stackPath: String, appVersion: String)
-
-  case object Started
-
   case object WorkflowInProgress
-
   case object NoWorkflow
 
-  val awsStackNamePattern = "[^\\w-]".r
+  def props(): Props = Props(new DeploymentSupervisor())
 
+  val awsStackNamePattern = "[^\\w-]".r
   def stackNameBuilder(stackPath: String, version: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath-v$version", "-")
 
-  def stackNameBuilder(deploy: Deploy): String = stackNameBuilder(deploy.stackPath, deploy.appVersion)
+  def deployBuilder(deployRequest: DeployRequest): Deploy = Deploy(deployRequest.stackPath, stackNameBuilder(deployRequest.stackPath, deployRequest.appVersion), deployRequest.appVersion, deployRequest.amiId)
 
   def logNameBuilder(stackPath: String, version: String): String = s"logs-${stackNameBuilder(stackPath, version)}"
 }

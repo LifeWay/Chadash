@@ -4,6 +4,7 @@ import actors.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowLog._
 import actors._
+import actors.workflow.WorkflowManager.{WorkflowData, WorkflowState}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStack, DeleteExistingStackFinished}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor._
@@ -15,196 +16,191 @@ import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.ConfigFactory
 import play.api.libs.json.Json
 
-/**
- * One WorkflowManager per in-process stackname / env combo.
- * Responsible for chaining together supervisors that manage tasks to get the deployment done.
- *
- * This actor should not call any actors directly that may crash due to amazon calls. A supervisor should
- * be between them that can handle the restarts for those calls.
- *
- */
-class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
+class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowData] with ActorLogging {
 
   import actors.workflow.WorkflowManager._
 
   val appConfig = ConfigFactory.load()
   val stackBucket = appConfig.getString("chadash.stack-bucket")
 
-  var workflowStepData = Map.empty[String, String]
-  var awsCreds: AWSCredentials = null
-  var deploy: Deploy = null
-  var existingStrack: String = null
-
-  /**
-   * Tell the logging actor about me before we get going.
-   */
   override def preStart(): Unit = {
-    logActor ! WatchMePlease
+    super.preStart()
+    logActor ! WatchThisWorkflow
   }
 
-  override def receive: Receive = {
-    case msg: StartDeploy =>
-      deploy = msg.deploy
-      sender() ! DeployStarted
+  startWith(AwaitingWorkflowStartCommand, Uninitialized)
+
+  when(AwaitingWorkflowStartCommand) {
+    case Event(StartDeployWorkflow(data), Uninitialized) =>
+      sender() ! WorkflowStarted
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
-      context.become(inProcess())
-
-    case msg: DeleteExistingStack =>
-      existingStrack = msg.stackName
-      sender() ! StackDeleteStarted
+      goto(AwaitingAWSCredentials) using DeployData(data)
+    case Event(StartDeleteWorkflow(stackName), Uninitialized) =>
+      sender() ! WorkflowStarted
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials
-      context.become(deleteInProcess())
+      goto(AwaitingAWSCredentials) using DeleteData(stackName)
   }
 
-  def deleteInProcess(): Receive = {
-    case msg: CurrentCredentials =>
-      context.unwatch(sender())
-      awsCreds = msg.credentials
-
-      val deleteStackSupervisor = context.actorOf(DeleteStackSupervisor.props(awsCreds), "deleteStackSupervisor")
-      context.watch(deleteStackSupervisor)
-      deleteStackSupervisor ! DeleteExistingStack(existingStrack)
-
-    case DeleteExistingStackFinished =>
+  when(AwaitingAWSCredentials) {
+    case Event(CurrentCredentials(creds), DeployData(data)) =>
       context.unwatch(sender())
 
-      logMessage("The stack has been deleted")
-      logMessage("Delete complete")
-      context.parent ! StackDeleteCompleted
-      logActor ! WorkflowSucceeded
-
-    case msg: LogMessage =>
-      logMessage(msg.message)
-
-    case msg: StepFailed =>
-      logMessage(s"The following child has failed: ${context.sender().path.name} for the following reason: ${msg.reason}")
-      context.unwatch(sender())
-      context.parent ! DeployFailed(logActor)
-      logActor ! WorkflowFailed
-
-    case Terminated(actorRef) =>
-      logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
-      context.parent ! DeployFailed(logActor)
-      logActor ! WorkflowFailed
-
-    case msg: Any =>
-      log.debug("Unhandled message type received: " + msg.toString)
-  }
-
-  def inProcess(): Receive = {
-    case msg: CurrentCredentials =>
-      context.unwatch(sender())
-      awsCreds = msg.credentials
-
-      val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(awsCreds), "loadStackSupervisor")
+      val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(creds), "loadStackSupervisor")
       context.watch(loadStackSupervisor)
-      loadStackSupervisor ! LoadStackCommand(stackBucket, deploy.stackPath)
+      loadStackSupervisor ! LoadStackCommand(stackBucket, data.stackPath)
+      goto(AwaitingLoadStackResponse) using DeployDataWithCreds(data, creds)
 
-    case msg: LoadStackResponse =>
+    case Event(CurrentCredentials(creds), DeleteData(stackName)) =>
       context.unwatch(sender())
-      logMessage("Stack JSON data loaded. Querying for existing stack")
-      workflowStepData = workflowStepData + ("stackFileContents" -> msg.stackData.toString())
-      val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(awsCreds), "validateAndFreezeSupervisor")
+      val deleteStackSupervisor = context.actorOf(DeleteStackSupervisor.props(creds), "deleteStackSupervisor")
+      context.watch(deleteStackSupervisor)
+      deleteStackSupervisor ! DeleteExistingStack(stackName)
+      goto(AwaitingDeleteStackResponse)
+  }
+
+  when(AwaitingLoadStackResponse) {
+    case Event(LoadStackResponse(stackJson), DeployDataWithCreds(data, creds)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("Stack JSON data loaded. Querying for existing stack")
+
+      val stepData: Map[String, String] = Map("stackFileContents" -> stackJson.toString())
+      val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(creds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
-      val stackName = deploy.stackPath.replaceAll("/", "-")
-      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(stackName)
+      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackName)
+      goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
+  }
 
-    case NoExistingStacksExist =>
+  when(AwaitingDeleteStackResponse) {
+    case Event(DeleteExistingStackFinished, DeleteData(_)) =>
       context.unwatch(sender())
-      logMessage("No existing stacks found. First-time stack launch")
-      val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
+      logActor ! LogMessage("The stack has been deleted")
+      logActor ! LogMessage("Delete complete")
+      logActor ! WorkflowLog.WorkflowCompleted
+      context.parent ! WorkflowCompleted
+      stop()
+  }
+
+  when(AwaitingStackVerifier) {
+    case Event(NoExistingStacksExist, DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("No existing stacks found. First-time stack launch")
+
+      val stackLauncher = context.actorOf(NewStackSupervisor.props(creds))
       context.watch(stackLauncher)
-      workflowStepData.get("stackFileContents") match {
+      stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          val stackName = deploy.stackPath.replaceAll("/", "-")
-          stackLauncher ! NewStackFirstLaunchCommand(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
+          stackLauncher ! NewStackFirstLaunchCommand(data.stackName, data.amiId, data.appVersion, Json.parse(stackFile))
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
+      goto(AwaitingStackLaunched)
 
-    case msg: VerifiedAndStackFrozen =>
+    case Event(VerifiedAndStackFrozen(oldStackName, oldASGName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
       context.unwatch(sender())
-      workflowStepData = workflowStepData + ("oldStackName" -> msg.oldStackName)
-      val stackLauncher = context.actorOf(NewStackSupervisor.props(awsCreds))
+
+      val newStepData = stepData + ("oldStackName" -> oldStackName)
+      val stackLauncher = context.actorOf(NewStackSupervisor.props(creds))
       context.watch(stackLauncher)
-      workflowStepData.get("stackFileContents") match {
+      stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          val stackName = deploy.stackPath.replaceAll("/", "-")
-          stackLauncher ! NewStackUpgradeLaunchCommand(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
+          stackLauncher ! NewStackUpgradeLaunchCommand(data.stackName, data.amiId, data.appVersion, Json.parse(stackFile), oldStackName, oldASGName)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
+      goto(AwaitingStackLaunched) using DeployDataWithCredsWithSteps(data, creds, newStepData)
+  }
 
-    case msg: FirstStackLaunchCompleted =>
+  when(AwaitingStackLaunched) {
+    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_,_,_)) =>
       context.unwatch(sender())
-      context.stop(sender())
-      logMessage(s"The first version of this stack has been successfully deployed. Stack Name: ${msg.newStackName}")
-      context.parent ! DeployCompleted
-      logActor ! WorkflowSucceeded
+      logActor ! LogMessage(s"The first version of this stack has been successfully deployed. Stack Name: $newStackName")
+      logActor ! WorkflowLog.WorkflowCompleted
+      context.parent ! WorkflowCompleted
+      stop()
 
-    case msg: StackUpgradeLaunchCompleted =>
+    case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
       context.unwatch(sender())
-      context.stop(sender())
-      logMessage(s"The next version of the stack has been successfully deployed.")
-
-      val tearDownSupervisor = context.actorOf(TearDownSupervisor.props(awsCreds), "tearDownSupervisor")
+      logActor ! LogMessage("The next version of the stack has been successfully deployed.")
+      val tearDownSupervisor = context.actorOf(TearDownSupervisor.props(creds), "tearDownSupervisor")
       context.watch(tearDownSupervisor)
-
-      workflowStepData.get("oldStackName") match {
-        case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, msg.newAsgName)
+      stepData.get("oldStackName") match {
+        case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, newAsgName)
         case None => throw new Exception("No old stack name found when attempting to tear down old stack")
       }
+      goto(AwaitingOldStackTearDown) using DeployDataWithCredsWithSteps(data, creds, stepData)
+  }
 
-    case TearDownFinished =>
+  when(AwaitingOldStackTearDown) {
+    case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _)) =>
       context.unwatch(sender())
+      logActor ! LogMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
+      logActor ! WorkflowLog.WorkflowCompleted
+      context.parent ! WorkflowCompleted
+      stop()
+  }
 
-      logMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
-      logMessage("Deploy complete")
-      context.parent ! DeployCompleted
-      logActor ! WorkflowSucceeded
+  whenUnhandled {
+    case Event(msg: Log, _) =>
+      logActor forward msg
+      stay()
 
-    case msg: LogMessage =>
-      logMessage(msg.message)
-
-    case msg: StepFailed =>
+    case Event(msg: StepFailed, _) =>
       context.unwatch(sender())
-      logMessage(s"The following child has failed: ${context.sender()} for the following reason: ${msg.reason}")
+      logActor ! LogMessage(s"The following step has failed: ${context.sender()} for the following reason: ${msg.reason}")
       failed()
+      stop()
 
-    case Terminated(actorRef) =>
-      logMessage(s"Child actor has died unexpectedly. Need a human! Details: ${actorRef.toString()}")
+    case Event(Terminated(actorRef), _) =>
+      context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
       failed()
+      stop()
 
-    case msg: Any =>
-      log.debug("Unhandled message type received: " + msg.toString)
+    case Event(msg: Any, data: WorkflowData) =>
+      log.debug(s"Unhandled message: ${msg.toString} Data: ${data.toString}")
+      failed()
+      stop()
+  }
+
+  onTermination {
+    case StopEvent(FSM.Failure(cause), state, data) =>
+      log.error(s"FSM has failed... $cause $state $data")
   }
 
   def failed() = {
-    context.parent ! DeployFailed(logActor)
-    logActor ! WorkflowFailed
+    logActor ! WorkflowLog.WorkflowFailed
+    context.parent ! WorkflowFailed(logActor)
   }
 
-  def logMessage(message: String) = logActor ! LogMessage(message)
+  initialize()
 }
 
 object WorkflowManager {
+  //Interaction Messages
+  sealed trait WorkflowMessage
+  case class StartDeployWorkflow(deploy: Deploy) extends WorkflowMessage
+  case class StartDeleteWorkflow(stackName: String) extends WorkflowMessage
+  case object WorkflowStarted extends WorkflowMessage
+  case object WorkflowCompleted extends WorkflowMessage
+  case class WorkflowFailed(logRef: ActorRef) extends WorkflowMessage
+  case class StepFailed(reason: String) extends WorkflowMessage
 
-  case class StepFailed(reason: String)
+  //FSM: States
+  sealed trait WorkflowState
+  case object AwaitingWorkflowStartCommand extends WorkflowState
+  case object AwaitingAWSCredentials extends WorkflowState
+  case object AwaitingLoadStackResponse extends WorkflowState
+  case object AwaitingStackVerifier extends WorkflowState
+  case object AwaitingStackLaunched extends WorkflowState
+  case object AwaitingOldStackTearDown extends WorkflowState
+  case object AwaitingDeleteStackResponse extends WorkflowState
 
-  case class StartDeploy(deploy: Deploy)
-
-  case object DeployStarted
-
-  case object DeploySuccessful
-
-  case class DeployFailed(logRef: ActorRef)
-
-  case object DeployCompleted
-
-  case object StackDeleteStarted
-
-  case object StackDeleteCompleted
+  //FSM: Data
+  sealed trait WorkflowData
+  case object Uninitialized extends WorkflowData
+  case class DeployData(deploy: Deploy) extends WorkflowData
+  case class DeployDataWithCreds(deploy: Deploy, creds: AWSCredentials) extends WorkflowData
+  case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentials, stepData: Map[String, String] = Map.empty[String, String]) extends WorkflowData
+  case class DeleteData(stackName: String) extends WorkflowData
 
   def props(logActor: ActorRef): Props = Props(new WorkflowManager(logActor))
-
 }

@@ -20,7 +20,7 @@ class WorkflowStatusWebSocket(out: ActorRef, workflowLog: ActorRef) extends Acto
     case x: Log =>
       x match {
         case LogMessage(logMessage) => out ! logMessage + "\n"
-        case terminationMessage@(WorkflowFailed | WorkflowSucceeded) =>
+        case terminationMessage@(WorkflowFailed | WorkflowCompleted) =>
           out ! terminationMessage.message
           self ! PoisonPill
       }

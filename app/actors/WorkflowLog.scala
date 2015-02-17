@@ -14,12 +14,12 @@ object WorkflowLog {
   case object WorkflowFailed extends Log {
     def message = "WorkflowFailed"
   }
-  case object WorkflowSucceeded extends Log {
-    def message = "WorkflowSucceeded"
+  case object WorkflowCompleted extends Log {
+    def message = "WorkflowCompleted"
   }
 
   case class SubscribeToMe(ref: ActorRef)
-  case object WatchMePlease
+  case object WatchThisWorkflow
   case class DeployStatusSubscribeRequest(stackPath: String, appVersion: String)
   case object DeployStatusSubscribeConfirm
 
@@ -51,7 +51,7 @@ class WorkflowLog extends Actor with ActorLogging {
       context.system.scheduler.scheduleOnce(15.minutes, self, TimeToDie)
       logger(msg)
 
-    case msg @ WorkflowSucceeded =>
+    case msg @ WorkflowCompleted =>
       for (x <- workflow) yield context.unwatch(x)
       context.system.scheduler.scheduleOnce(15.minutes, self, TimeToDie)
       logger(msg)
@@ -63,7 +63,7 @@ class WorkflowLog extends Actor with ActorLogging {
       context.watch(sender())
       logs.map(sender() ! _)
 
-    case WatchMePlease =>
+    case WatchThisWorkflow =>
       workflow = Some(sender())
       context.watch(sender())
 

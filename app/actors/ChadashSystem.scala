@@ -11,8 +11,8 @@ object ChadashSystem {
   val credentials = system.actorOf(Props[AmazonCredentials], "awsCredentials")
   credentials ! AmazonCredentials.Initialize
 
-  val deploymentSupervisor = system.actorOf(Props[DeploymentSupervisor], "deploymentSupervisor")
-  val deadLetterHandler = system.actorOf(Props[DeadLetterHandler], "deadLetterHandler")
+  val deploymentSupervisor = system.actorOf(DeploymentSupervisor.props(), "deploymentSupervisor")
+  val deadLetterHandler = system.actorOf(DeadLetterHandler.props(), "deadLetterHandler")
 
   system.eventStream.subscribe(deadLetterHandler, classOf[DeadLetter])
 }

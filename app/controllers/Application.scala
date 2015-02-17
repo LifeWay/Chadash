@@ -31,7 +31,7 @@ object Application extends Controller {
         deployment => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.Deploy(stackPath, deployment.version, deployment.amiId)
+            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.DeployRequest(stackPath, deployment.version, deployment.amiId)
           ) yield res
 
           f.map {

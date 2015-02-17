@@ -25,7 +25,7 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
 
       val awsClient = new AmazonCloudFormationClient(credentials)
       val results = awsClient.listStacks(listStackRequests).getStackSummaries.asScala.toSeq
-      val filteredResults = results.filter(p => p.getStackName.startsWith(s"chadash-${query.stackName}"))
+      val filteredResults = results.filter(p => p.getStackName.startsWith(query.stackName))
       val filteredStackNames = filteredResults.foldLeft(Seq.empty[String])((sum, i) => sum :+ i.getStackName)
 
       context.parent ! FilteredStacks(filteredStackNames)
