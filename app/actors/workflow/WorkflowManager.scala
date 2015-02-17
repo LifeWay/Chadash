@@ -6,7 +6,7 @@ import actors.WorkflowLog._
 import actors._
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStack, DeleteExistingStackFinished}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
-import actors.workflow.steps.NewStackSupervisor.{FirstStackLaunch, FirstStackLaunchCompleted, StackUpgradeLaunch, StackUpgradeLaunchCompleted}
+import actors.workflow.steps.NewStackSupervisor._
 import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinished}
 import actors.workflow.steps.ValidateAndFreezeSupervisor._
 import actors.workflow.steps._
@@ -119,7 +119,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       workflowStepData.get("stackFileContents") match {
         case Some(stackFile) =>
           val stackName = deploy.stackPath.replaceAll("/", "-")
-          stackLauncher ! FirstStackLaunch(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
+          stackLauncher ! NewStackFirstLaunchCommand(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile))
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
 
@@ -131,7 +131,7 @@ class WorkflowManager(logActor: ActorRef) extends Actor with ActorLogging {
       workflowStepData.get("stackFileContents") match {
         case Some(stackFile) =>
           val stackName = deploy.stackPath.replaceAll("/", "-")
-          stackLauncher ! StackUpgradeLaunch(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
+          stackLauncher ! NewStackUpgradeLaunchCommand(stackName, deploy.amiId, deploy.appVersion, Json.parse(stackFile), msg.oldStackName, msg.oldASGName)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
 
