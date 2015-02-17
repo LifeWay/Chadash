@@ -97,6 +97,8 @@ object DeploymentSupervisor {
   val awsStackNamePattern = "[^\\w-]".r
   def stackNameBuilder(stackPath: String, version: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath-v$version", "-")
 
+  def stackNameSansVersionBuilder(stackPath: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath", "-")
+
   def deployBuilder(deployRequest: DeployRequest): Deploy = Deploy(deployRequest.stackPath, stackNameBuilder(deployRequest.stackPath, deployRequest.appVersion), deployRequest.appVersion, deployRequest.amiId)
 
   def logNameBuilder(stackPath: String, version: String): String = s"logs-${stackNameBuilder(stackPath, version)}"

@@ -1,5 +1,6 @@
 package actors.workflow.steps
 
+import actors.DeploymentSupervisor
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.WorkflowManager.StepFailed
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{ValidateAndFreezeData, ValidateAndFreezeStates}
@@ -21,7 +22,8 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
     case Event(msg: ValidateAndFreezeStackCommand, Uninitialized) =>
       val stackList = context.actorOf(StackList.props(credentials), "stackList")
       context.watch(stackList)
-      stackList ! ListNonDeletedStacksStartingWithName(msg.stackName)
+      val stackName = DeploymentSupervisor.stackNameSansVersionBuilder(msg.stackPath)
+      stackList ! ListNonDeletedStacksStartingWithName(stackName)
       goto(AwaitingFilteredStackResponse)
   }
 
@@ -97,7 +99,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
 object ValidateAndFreezeSupervisor {
   //Interaction Messages
   sealed trait ValidateAndFreezeMessage
-  case class ValidateAndFreezeStackCommand(stackName: String) extends ValidateAndFreezeMessage
+  case class ValidateAndFreezeStackCommand(stackPath: String) extends ValidateAndFreezeMessage
   case object NoExistingStacksExist extends ValidateAndFreezeMessage
   case class VerifiedAndStackFrozen(oldStackName: String, oldASGName: String) extends ValidateAndFreezeMessage
 

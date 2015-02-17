@@ -68,7 +68,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       val stepData: Map[String, String] = Map("stackFileContents" -> stackJson.toString())
       val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(creds), "validateAndFreezeSupervisor")
       context.watch(validateAndFreezeSupervisor)
-      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackName)
+      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath)
       goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
   }
 
