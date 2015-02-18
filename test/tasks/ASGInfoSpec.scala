@@ -16,7 +16,8 @@ import utils.TestConfiguration
 
 import scala.concurrent.duration._
 
-class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with Matchers with MockitoSugar {
+class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with Matchers
+                          with MockitoSugar {
 
   val mockedClient            = mock[AmazonAutoScaling]
   val describeASGRequest      = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
@@ -30,8 +31,9 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqFail)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqClientExc)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)
 
-  val asgInfoProps = Props(new ASGInfo(null){
-    override def pauseTime(): FiniteDuration =  5.milliseconds
+  val asgInfoProps = Props(new ASGInfo(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
     override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
   })
 

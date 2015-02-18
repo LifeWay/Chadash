@@ -8,7 +8,7 @@ scalaVersion := "2.11.5"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala).configs(IntegrationTest).settings(
-  Defaults.itSettings : _*
+  Defaults.itSettings: _*
 )
 
 libraryDependencies ++= Seq(
@@ -34,7 +34,7 @@ buildInfoKeys ++= Seq[BuildInfoKey](
     scala.util.Properties.envOrElse("GIT_COMMIT", "")
   },
   BuildInfoKey.action("buildTime") {
-    if(version.value != "DEV") System.currentTimeMillis else ""
+    if (version.value != "DEV") System.currentTimeMillis else ""
   }
 )
 buildInfoPackage := "com.lifeway.chadash.appversion"
