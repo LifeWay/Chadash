@@ -4,12 +4,11 @@ import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
-import com.amazonaws.services.autoscaling.{AmazonAutoScaling, AmazonAutoScalingClient}
-import utils.{AmazonAutoScalingClientImpl, AmazonAutoScalingComponent}
+import utils.AmazonAutoScalingService
 
 import scala.collection.JavaConverters._
 
-abstract class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor with AmazonAutoScalingComponent {
+class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor with AmazonAutoScalingService {
 
   import actors.workflow.tasks.ASGInfo._
 
@@ -41,6 +40,6 @@ abstract class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor 
 object ASGInfo {
   case class ASGInServiceInstancesAndELBSQuery(asgName: String)
   case class ASGInServiceInstancesAndELBSResult(elbNames: Seq[String], instanceIds: Seq[String])
-  def props(credentials: AWSCredentials): Props = Props(new ASGInfo(credentials) with AmazonAutoScalingClientImpl)
+  def props(credentials: AWSCredentials): Props = Props(new ASGInfo(credentials))
 }
 
