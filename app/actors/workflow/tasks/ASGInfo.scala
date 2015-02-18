@@ -40,6 +40,7 @@ class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor with Amaz
 object ASGInfo {
   case class ASGInServiceInstancesAndELBSQuery(asgName: String)
   case class ASGInServiceInstancesAndELBSResult(elbNames: Seq[String], instanceIds: Seq[String])
+
   def props(credentials: AWSCredentials): Props = Props(new ASGInfo(credentials))
 }
 

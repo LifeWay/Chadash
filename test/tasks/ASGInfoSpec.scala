@@ -1,9 +1,10 @@
 package tasks
 
+import actors.WorkflowLog.LogMessage
 import actors.workflow.AWSSupervisorStrategy
 import actors.workflow.tasks.ASGInfo
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
-import akka.actor.{Actor, ActorSystem, Props, Terminated}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
@@ -54,21 +55,24 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   }
 
   it should "throw an exception if AWS is down" in {
-    //Fabricate a parent so we can test messages coming back to the parent.
     val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(asgInfoProps, "asgInfo")
-      context.watch(child)
+    val bigBoss = system.actorOf(Props(new Actor {
+      val childBoss = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
+        val child = context.actorOf(asgInfoProps, "asgInfo")
+        def receive = {
+          case x => child forward x
+        }
+      }))
 
       def receive = {
-        case Terminated(actorRef) => proxy.ref forward "terminated"
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
+        case x: LogMessage => proxy.ref forward x
+        case x => childBoss forward x
       }
     }))
 
-    proxy.send(parent, ASGInServiceInstancesAndELBSQuery("expect-fail"))
-    proxy.expectMsg("terminated")
+    proxy.send(bigBoss, ASGInServiceInstancesAndELBSQuery("expect-fail"))
+    val msg = proxy.expectMsgClass(classOf[LogMessage])
+    msg.message should include ("AmazonServiceException")
   }
 
   it should "support restarts if we had a client communication exception reaching AWS and the supervisor implements AWSSupervisorStrategy" in {
