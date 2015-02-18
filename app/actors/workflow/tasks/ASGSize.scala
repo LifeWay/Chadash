@@ -1,46 +1,42 @@
 package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
-import com.amazonaws.services.autoscaling.model.{SetDesiredCapacityRequest, DescribeAutoScalingGroupsRequest}
+import com.amazonaws.services.autoscaling.model.{DescribeAutoScalingGroupsRequest, SetDesiredCapacityRequest}
+import utils.AmazonAutoScalingService
 
 import scala.collection.JavaConverters._
 
-class ASGSize(credentials: AWSCredentials) extends AWSRestartableActor {
+class ASGSize(credentials: AWSCredentials) extends AWSRestartableActor with AmazonAutoScalingService {
 
   import actors.workflow.tasks.ASGSize._
 
   override def receive: Receive = {
     case msg: ASGDesiredSizeQuery =>
       val asgFilter = new DescribeAutoScalingGroupsRequest()
-        .withAutoScalingGroupNames(msg.asgName)
+                      .withAutoScalingGroupNames(msg.asgName)
 
-      val awsClient = new AmazonAutoScalingClient(credentials)
+      val awsClient = autoScalingClient(credentials)
       val result = awsClient.describeAutoScalingGroups(asgFilter).getAutoScalingGroups.asScala.toSeq
-      context.parent ! ASGDesiredSizeResult(msg.asgName, result(0).getDesiredCapacity)
+      context.parent ! ASGDesiredSizeResult(result(0).getDesiredCapacity)
 
     case msg: ASGSetDesiredSizeCommand =>
       val desiredCapRequest = new SetDesiredCapacityRequest()
-        .withDesiredCapacity(msg.size)
-        .withAutoScalingGroupName(msg.asgName)
+                              .withDesiredCapacity(msg.size)
+                              .withAutoScalingGroupName(msg.asgName)
 
-      val awsClient = new AmazonAutoScalingClient(credentials)
+      val awsClient = autoScalingClient(credentials)
       awsClient.setDesiredCapacity(desiredCapRequest)
-      context.parent ! ASGDesiredSizeSet(msg.asgName, msg.size)
+      context.parent ! ASGDesiredSizeSet(msg.size)
   }
 }
 
 object ASGSize {
-
   case class ASGDesiredSizeQuery(asgName: String)
-
-  case class ASGDesiredSizeResult(asgName: String, size: Int)
-
+  case class ASGDesiredSizeResult(size: Int)
   case class ASGSetDesiredSizeCommand(asgName: String, size: Int)
-
-  case class ASGDesiredSizeSet(asgName: String, size: Int)
+  case class ASGDesiredSizeSet(size: Int)
 
   def props(credentials: AWSCredentials): Props = Props(new ASGSize(credentials))
 }

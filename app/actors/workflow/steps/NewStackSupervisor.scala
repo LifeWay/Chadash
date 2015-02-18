@@ -94,24 +94,24 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingASGDesiredSizeResult) {
-    case Event(msg: ASGDesiredSizeResult, UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
+    case Event(ASGDesiredSizeResult(size), UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"Old ASG desired instances: ${msg.size}, setting new ASG to ${msg.size} desired instances")
+      context.parent ! LogMessage(s"Old ASG desired instances: $size, setting new ASG to $size desired instances")
 
       val resizeASG = context.actorOf(ASGSize.props(credentials), "asgResize")
       context.watch(resizeASG)
-      resizeASG ! ASGSetDesiredSizeCommand(newAsgName, msg.size)
+      resizeASG ! ASGSetDesiredSizeCommand(newAsgName, size)
       goto(AwaitingASGDesiredSizeSetResponse)
   }
 
   when(AwaitingASGDesiredSizeSetResponse) {
-    case Event(msg: ASGDesiredSizeSet, UpgradeOldStackDataWithASG(_, _, _, _)) =>
+    case Event(ASGDesiredSizeSet(size), UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
 
-      val asgELBDetailQuery = context.actorOf(HealthyInstanceSupervisor.props(credentials, msg.size, msg.asgName), "healthyInstanceSupervisor")
+      val asgELBDetailQuery = context.actorOf(HealthyInstanceSupervisor.props(credentials, size, newAsgName), "healthyInstanceSupervisor")
       context.watch(asgELBDetailQuery)
       asgELBDetailQuery ! CheckHealth
       goto(AwaitingHealthyNewASG)
