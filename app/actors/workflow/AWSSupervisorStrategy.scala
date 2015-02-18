@@ -11,7 +11,6 @@ trait AWSSupervisorStrategy extends Actor with ActorLogging {
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 20, loggingEnabled = true) {
     case ex: AmazonServiceException =>
       context.parent ! LogMessage(ex.toString)
-      log.error(ex, "Unrecoverable Amazon Exception")
       Stop
 
     case _: AmazonClientException =>
@@ -20,7 +19,6 @@ trait AWSSupervisorStrategy extends Actor with ActorLogging {
 
     case ex: Exception =>
       context.parent ! LogMessage(ex.toString)
-      log.error(ex, "Catch-all Exception Handler.")
       Stop
   }
 }
