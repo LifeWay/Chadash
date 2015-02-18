@@ -1,7 +1,7 @@
 package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.ListStacksRequest

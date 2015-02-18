@@ -16,7 +16,7 @@ import scala.concurrent.duration._
  * skipping a beat.
  *
  */
-trait AWSRestartableActor extends Actor with ActorLogging {
+trait AWSRestartableActor extends Actor with AWSRestartablePause with ActorLogging {
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
     log.info(s"Restarted because of ${reason.getMessage}")
@@ -28,8 +28,12 @@ trait AWSRestartableActor extends Actor with ActorLogging {
     message match {
       case Some(msg) =>
         log.info(s"Restarting Actor and replaying with a msg type of: ${msg.getClass.toString}")
-        context.system.scheduler.scheduleOnce(15.seconds, self, msg)
+        context.system.scheduler.scheduleOnce(pauseTime(), self, msg)
       case None => log.warning("Actor restarting, but no message to replay")
     }
   }
+}
+
+trait AWSRestartablePause {
+  def pauseTime(): FiniteDuration = 15.seconds
 }
