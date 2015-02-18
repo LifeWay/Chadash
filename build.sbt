@@ -7,8 +7,6 @@ version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
 scalaVersion := "2.11.5"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
-unmanagedSourceDirectories in IntegrationTest <<= (baseDirectory in IntegrationTest)(base =>  Seq(base / "test-integration"))
-
 lazy val root = (project in file(".")).enablePlugins(PlayScala).configs(IntegrationTest).settings(
   Defaults.itSettings : _*
 )
@@ -21,7 +19,8 @@ libraryDependencies ++= Seq(
   "commons-io" % "commons-io" % "2.4",
   "com.typesafe.akka" %% "akka-actor" % "2.3.9",
   "com.typesafe.akka" %% "akka-slf4j" % "2.3.9",
-  "org.scalatestplus" %% "play" % "1.1.0" % "test, it"
+  "com.typesafe.akka" %% "akka-testkit" % "2.3.9" % "test",
+  "org.scalatestplus" %% "play" % "1.1.0" % "test"
 )
 
 //----
