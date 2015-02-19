@@ -3,7 +3,7 @@ package tasks
 import actors.WorkflowLog.LogMessage
 import actors.workflow.AWSSupervisorStrategy
 import actors.workflow.tasks.ASGSize
-import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
+import actors.workflow.tasks.ASGSize._
 import akka.actor.{Actor, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
@@ -65,7 +65,7 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
     }))
 
     proxy.send(parent, ASGSetDesiredSizeCommand("test-asg-name", 5))
-    proxy.expectMsg(ASGDesiredSizeSet(5))
+    proxy.expectMsg(ASGSetDesiredSizeRequested)
   }
 
   it should "throw an exception if AWS is down" in {

@@ -3,7 +3,7 @@ package actors.workflow.steps
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.HealthyInstanceSupervisor.{CheckHealth, HealthStatusMet}
 import actors.workflow.steps.NewStackSupervisor.{NewStackData, NewStackState}
-import actors.workflow.tasks.ASGSize.{ASGDesiredSizeQuery, ASGDesiredSizeResult, ASGDesiredSizeSet, ASGSetDesiredSizeCommand}
+import actors.workflow.tasks.ASGSize._
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
 import actors.workflow.tasks.StackCreateCompleteMonitor.StackCreateCompleted
 import actors.workflow.tasks.StackCreator.{StackCreateCommand, StackCreateRequestCompleted}
@@ -94,7 +94,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingASGDesiredSizeResult) {
-    case Event(ASGDesiredSizeResult(size), UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
+    case Event(ASGDesiredSizeResult(size), UpgradeOldStackDataWithASG(oldStackASG, oldStackName, newStackName, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"Old ASG desired instances: $size, setting new ASG to $size desired instances")
@@ -102,11 +102,11 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
       val resizeASG = context.actorOf(ASGSize.props(credentials), "asgResize")
       context.watch(resizeASG)
       resizeASG ! ASGSetDesiredSizeCommand(newAsgName, size)
-      goto(AwaitingASGDesiredSizeSetResponse)
+      goto(AwaitingASGDesiredSizeSetResponse) using UpgradeOldStackDataWithASGAndSize(oldStackASG, oldStackName, newStackName, newAsgName, size)
   }
 
   when(AwaitingASGDesiredSizeSetResponse) {
-    case Event(ASGDesiredSizeSet(size), UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
+    case Event(ASGSetDesiredSizeRequested, UpgradeOldStackDataWithASGAndSize(_, _, _, newAsgName, size)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
@@ -118,7 +118,7 @@ class NewStackSupervisor(credentials: AWSCredentials) extends FSM[NewStackState,
   }
 
   when(AwaitingHealthyNewASG) {
-    case Event(HealthStatusMet, UpgradeOldStackDataWithASG(_, _, _, newAsgName)) =>
+    case Event(HealthStatusMet, UpgradeOldStackDataWithASGAndSize(_, _, _, newAsgName, _)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"New ASG up and reporting healthy in the ELB(s)")
@@ -177,6 +177,7 @@ object NewStackSupervisor {
   case class FirstTimeStack(newStackName: String) extends NewStackData with FirstStepData
   case class UpgradeOldStackData(oldStackASG: String, oldStackName: String, newStackName: String) extends NewStackData with FirstStepData
   case class UpgradeOldStackDataWithASG(oldStackASG: String, oldStackName: String, newStackName: String, newStackASG: String) extends NewStackData
+  case class UpgradeOldStackDataWithASGAndSize(oldStackASG: String, oldStackName: String, newStackName: String, newStackASG: String, oldASGSize: Int) extends NewStackData
 
   def props(credentials: AWSCredentials): Props = Props(new NewStackSupervisor(credentials))
 }

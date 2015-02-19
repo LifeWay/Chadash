@@ -28,7 +28,7 @@ class ASGSize(credentials: AWSCredentials) extends AWSRestartableActor with Amaz
 
       val awsClient = autoScalingClient(credentials)
       awsClient.setDesiredCapacity(desiredCapRequest)
-      context.parent ! ASGDesiredSizeSet(msg.size)
+      context.parent ! ASGSetDesiredSizeRequested
   }
 }
 
@@ -36,7 +36,7 @@ object ASGSize {
   case class ASGDesiredSizeQuery(asgName: String)
   case class ASGDesiredSizeResult(size: Int)
   case class ASGSetDesiredSizeCommand(asgName: String, size: Int)
-  case class ASGDesiredSizeSet(size: Int)
+  case object ASGSetDesiredSizeRequested
 
   def props(credentials: AWSCredentials): Props = Props(new ASGSize(credentials))
 }
