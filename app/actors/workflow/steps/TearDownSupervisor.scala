@@ -2,7 +2,7 @@ package actors.workflow.steps
 
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.TearDownSupervisor.{TearDownData, TearDownState}
-import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}
+import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeleteRequested}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
 import actors.workflow.tasks.StackInfo.{StackIdQuery, StackIdResponse}
 import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCommand, UnfreezeASGCompleted}
@@ -11,7 +11,8 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState, TearDownData] with ActorLogging with AWSSupervisorStrategy {
+class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState, TearDownData] with ActorLogging
+                                                              with AWSSupervisorStrategy {
 
   import actors.workflow.steps.TearDownSupervisor._
 
@@ -38,7 +39,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
   }
 
   when(AwaitingStackDeletedResponse) {
-    case Event(msg: StackDeletedResponse, stackData: DeleteStackData) =>
+    case Event(StackDeleteRequested, stackData: DeleteStackData) =>
       context.unwatch(sender())
       context.stop(sender())
 

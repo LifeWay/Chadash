@@ -2,7 +2,7 @@ package actors.workflow.steps
 
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteStackData, DeleteStackStates}
-import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeletedResponse}
+import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeleteRequested}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
 import actors.workflow.tasks.StackInfo.StackIdQuery
 import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo}
@@ -10,7 +10,8 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 
-class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData] with ActorLogging with AWSSupervisorStrategy {
+class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData]
+                                                                 with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.DeleteStackSupervisor._
 
@@ -35,7 +36,7 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
   }
 
   when(AwaitingStackDeletedResponse) {
-    case Event(msg: StackDeletedResponse, data: StackIdAndName) =>
+    case Event(StackDeleteRequested, data: StackIdAndName) =>
       context.unwatch(sender())
       context.parent ! LogMessage(s"Stack has been requested to be deleted. Monitoring delete progress")
       val monitor = context.actorOf(StackDeleteCompleteMonitor.props(credentials, data.stackId, data.stackName), "stackDeleteMonitor")
