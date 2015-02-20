@@ -1,10 +1,9 @@
 package tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.AWSSupervisorStrategy
 import actors.workflow.tasks.DeleteStack
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeleteRequested}
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
@@ -13,7 +12,7 @@ import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{FlatSpecLike, Matchers}
-import utils.TestConfiguration
+import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
@@ -34,55 +33,38 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
     override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
   })
 
-  "A DeleteStack actor" should "request to delete the stack and return a response" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(props)
-
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      //Match on actor classes you care about, pass the rest onto the "prod" factory.
+      ref match {
+        case DeleteStack => context.actorOf(props)
+        case _ => ActorFactory(ref, context, name, args)
       }
-    }))
+    }
+  }
 
-    proxy.send(parent, DeleteStackCommand("test-stack-name"))
-    proxy.expectMsg(StackDeleteRequested)
+  "A DeleteStack actor" should "request to delete the stack and return a response" in {
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, DeleteStack, system, TestActorFactory)
+
+    probe.send(proxy, DeleteStackCommand("test-stack-name"))
+    probe.expectMsg(StackDeleteRequested)
   }
 
   it should "throw an exception if AWS is down" in {
-    val proxy = TestProbe()
-    val bigBoss = system.actorOf(Props(new Actor {
-      val childBoss = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = context.actorOf(props)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, DeleteStack, system, TestActorFactory)
 
-        def receive = {
-          case x => child forward x
-        }
-      }))
-
-      def receive = {
-        case x: LogMessage => proxy.ref forward x
-        case x => childBoss forward x
-      }
-    }))
-
-    proxy.send(bigBoss, DeleteStackCommand("fail-stack"))
-    val msg = proxy.expectMsgClass(classOf[LogMessage])
+    probe.send(proxy, DeleteStackCommand("fail-stack"))
+    val msg = probe.expectMsgClass(classOf[LogMessage])
     msg.message should include("AmazonServiceException")
   }
 
   it should "support restarts if we had a client communication exception reaching AWS and the supervisor implements AWSSupervisorStrategy" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(props)
-      context.watch(child)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, DeleteStack, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-    proxy.send(parent, DeleteStackCommand("client-exception-stack"))
-    proxy.expectMsg(StackDeleteRequested)
+    probe.send(proxy, DeleteStackCommand("client-exception-stack"))
+    probe.expectMsg(StackDeleteRequested)
   }
 }

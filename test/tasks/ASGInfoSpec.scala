@@ -1,7 +1,6 @@
 package tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.{AWSRestartableActor, AWSSupervisorStrategy}
 import actors.workflow.tasks.ASGInfo
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
 import akka.actor._
@@ -49,56 +48,27 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   }
 
   "An ASGInfo fetcher" should "return a valid response if AWS is up" in {
-    //Fabricate a parent so we can test messages coming back to the parent.
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
-      //val child = context.actorOf(asgInfoProps, "asgInfo")
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ASGInfo, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-
-    proxy.send(parent, ASGInServiceInstancesAndELBSQuery("test-asg-name"))
-    proxy.expectMsg(ASGInServiceInstancesAndELBSResult(Seq("test-elb-name"), Seq("test-instance-id")))
+    probe.send(proxy, ASGInServiceInstancesAndELBSQuery("test-asg-name"))
+    probe.expectMsg(ASGInServiceInstancesAndELBSResult(Seq("test-elb-name"), Seq("test-instance-id")))
   }
 
   it should "throw an exception if AWS is down" in {
-    val proxy = TestProbe()
-    val grandparent = system.actorOf(Props(new Actor {
-      val parent = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
-        def receive = {
-          case x => child forward x
-        }
-      }))
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ASGInfo, system, TestActorFactory)
 
-      def receive = {
-        case x: LogMessage => proxy.ref forward x
-        case x => parent forward x
-      }
-    }))
-
-    proxy.send(grandparent, ASGInServiceInstancesAndELBSQuery("expect-fail"))
-    val msg = proxy.expectMsgClass(classOf[LogMessage])
-    msg.message should include ("AmazonServiceException")
+    probe.send(proxy, ASGInServiceInstancesAndELBSQuery("expect-fail"))
+    val msg = probe.expectMsgClass(classOf[LogMessage])
+    msg.message should include("AmazonServiceException")
   }
 
   it should "support restarts if we had a client communication exception reaching AWS and the supervisor implements AWSSupervisorStrategy" in {
-    //Fabricate a parent so we can test messages coming back to the parent.
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
-      context.watch(child)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ASGInfo, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-    proxy.send(parent, ASGInServiceInstancesAndELBSQuery("client-exception"))
-    proxy.expectMsg(ASGInServiceInstancesAndELBSResult(Seq("test-elb-name"), Seq("test-instance-id")))
+    probe.send(proxy, ASGInServiceInstancesAndELBSQuery("client-exception"))
+    probe.expectMsg(ASGInServiceInstancesAndELBSResult(Seq("test-elb-name"), Seq("test-instance-id")))
   }
 }

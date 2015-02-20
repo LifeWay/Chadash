@@ -1,15 +1,14 @@
 package tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.AWSSupervisorStrategy
-import actors.workflow.tasks.{ASGInfo, FreezeASG}
+import actors.workflow.tasks.FreezeASG
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
+import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{FlatSpecLike, Matchers}
@@ -49,54 +48,27 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   }
 
   "A FreezeASG actor" should " return a freeze completed response if successful" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = TestActorFactory(FreezeASG, context, "", null)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, FreezeASG, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-
-    proxy.send(parent, FreezeASGCommand("freeze-success"))
-    proxy.expectMsg(FreezeASGCompleted("freeze-success"))
+    probe.send(proxy, FreezeASGCommand("freeze-success"))
+    probe.expectMsg(FreezeASGCompleted("freeze-success"))
   }
 
   it should "throw an exception if AWS is down" in {
-    val proxy = TestProbe()
-    val grandparent = system.actorOf(Props(new Actor {
-      val parent = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = TestActorFactory(FreezeASG, context, "asgInfo", null)
-        def receive = {
-          case x => child forward x
-        }
-      }))
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, FreezeASG, system, TestActorFactory)
 
-      def receive = {
-        case x: LogMessage => proxy.ref forward x
-        case x => parent forward x
-      }
-    }))
-
-    proxy.send(grandparent, FreezeASGCommand("fail"))
-    val msg = proxy.expectMsgClass(classOf[LogMessage])
-    msg.message should include ("AmazonServiceException")
+    probe.send(proxy, FreezeASGCommand("fail"))
+    val msg = probe.expectMsgClass(classOf[LogMessage])
+    msg.message should include("AmazonServiceException")
   }
 
   it should "support restarts if we had a client communication exception reaching AWS and the supervisor implements AWSSupervisorStrategy" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = TestActorFactory(FreezeASG, context, "", null)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, FreezeASG, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-
-    proxy.send(parent, FreezeASGCommand("client-exception"))
-    proxy.expectMsg(FreezeASGCompleted("client-exception"))
+    probe.send(proxy, FreezeASGCommand("client-exception"))
+    probe.expectMsg(FreezeASGCompleted("client-exception"))
   }
-
 }

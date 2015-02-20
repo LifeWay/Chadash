@@ -1,7 +1,6 @@
 package tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.AWSSupervisorStrategy
 import actors.workflow.tasks.ELBHealthyInstanceChecker
 import actors.workflow.tasks.ELBHealthyInstanceChecker.{ELBInstanceListAllHealthy, ELBInstanceListNotHealthy, ELBIsInstanceListHealthy}
 import akka.actor._
@@ -54,69 +53,35 @@ class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestCo
   }
 
   "A ELBHealthInstanceChecker actor" should "return an all healthy message if all instance are healthy" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(props)
-      context.watch(child)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ELBHealthyInstanceChecker, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-    proxy.send(parent, ELBIsInstanceListHealthy("test", Seq("instance-1")))
-    proxy.expectMsg(ELBInstanceListAllHealthy("test"))
+    probe.send(proxy, ELBIsInstanceListHealthy("test", Seq("instance-1")))
+    probe.expectMsg(ELBInstanceListAllHealthy("test"))
   }
 
   it should "return an a not health message with the count of unhealthy instances if not all instances are healthy" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(props)
-      context.watch(child)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ELBHealthyInstanceChecker, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-    proxy.send(parent, ELBIsInstanceListHealthy("test-not-healthy", Seq("instance-1", "instance-2", "instance-3")))
-    proxy.expectMsg(ELBInstanceListNotHealthy(2, "test-not-healthy"))
+    probe.send(proxy, ELBIsInstanceListHealthy("test-not-healthy", Seq("instance-1", "instance-2", "instance-3")))
+    probe.expectMsg(ELBInstanceListNotHealthy(2, "test-not-healthy"))
   }
 
   it should "throw an exception if AWS is down" in {
-    val proxy = TestProbe()
-    val grandparent = system.actorOf(Props(new Actor {
-      val parent = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = TestActorFactory(ELBHealthyInstanceChecker, context, "", null)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ELBHealthyInstanceChecker, system, TestActorFactory)
 
-        def receive = {
-          case x => child forward x
-        }
-      }))
-
-      def receive = {
-        case x: LogMessage => proxy.ref forward x
-        case x => parent forward x
-      }
-    }))
-
-    proxy.send(grandparent, ELBIsInstanceListHealthy("fail-elb", Seq("instance-1")))
-    val msg = proxy.expectMsgClass(classOf[LogMessage])
+    probe.send(proxy, ELBIsInstanceListHealthy("fail-elb", Seq("instance-1")))
+    val msg = probe.expectMsgClass(classOf[LogMessage])
     msg.message should include("AmazonServiceException")
   }
 
   it should "support restarts if we had a client communication exception reaching AWS and the supervisor implements AWSSupervisorStrategy" in {
-    val proxy = TestProbe()
-    val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(props)
-      context.watch(child)
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, ELBHealthyInstanceChecker, system, TestActorFactory)
 
-      def receive = {
-        case x if sender() == child => proxy.ref forward x
-        case x => child forward x
-      }
-    }))
-    proxy.send(parent, ELBIsInstanceListHealthy("client-exception", Seq("instance-1")))
-    proxy.expectMsg(ELBInstanceListAllHealthy("client-exception"))
+    probe.send(proxy, ELBIsInstanceListHealthy("client-exception", Seq("instance-1")))
+    probe.expectMsg(ELBInstanceListAllHealthy("client-exception"))
   }
 }
