@@ -13,7 +13,7 @@ import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{FlatSpecLike, Matchers}
-import utils.{ActorFactory, AmazonCloudFormationService, AmazonAutoScalingService, TestConfiguration}
+import utils._
 
 import scala.concurrent.duration._
 
@@ -39,11 +39,11 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   })
 
   object TestActorFactory extends ActorFactory {
-    def apply(clazz: AnyRef, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
       //Match on actor classes you care about, pass the rest onto the "prod" factory.
-      clazz match {
+      ref match {
         case ASGInfo => context.actorOf(asgInfoProps, "asgInfo")
-        case _ => ActorFactory(clazz, context, name, args)
+        case _ => ActorFactory(ref, context, name, args)
       }
     }
   }

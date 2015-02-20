@@ -2,16 +2,19 @@ package utils
 
 import actors.workflow.tasks.ASGInfo
 import akka.actor._
-import com.amazonaws.auth.AWSCredentials
 
 trait ActorFactory {
-  def apply(clazz: AnyRef, context: ActorRefFactory, name: String, args: Any*): ActorRef
+  def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef
+}
+
+trait PropFactory {
+  def props(args: Any*): Props
 }
 
 object ActorFactory extends ActorFactory {
-  def apply(clazz: AnyRef, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-    clazz match {
-      case ASGInfo => context.actorOf(ASGInfo.props(args(0).asInstanceOf[AWSCredentials]), name)
+  def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+    ref match {
+      case ASGInfo => context.actorOf(ASGInfo.props(args), name)
       case x: Any => throw new UnsupportedOperationException("Unmatched type: " + x.getClass.toGenericString)
     }
   }
