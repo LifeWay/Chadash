@@ -1,15 +1,14 @@
 package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, Instance}
-import utils.PropFactory
+import utils.{AmazonElasticLoadBalancingService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestartableActor {
+class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestartableActor with AmazonElasticLoadBalancingService {
 
   import actors.workflow.tasks.ELBHealthyInstanceChecker._
 
@@ -21,7 +20,7 @@ class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestarta
         .withInstances(elbInstances.asJava)
         .withLoadBalancerName(msg.elbName)
 
-      val awsClient = new AmazonElasticLoadBalancingClient(credentials)
+      val awsClient = elasticLoadBalancingClient(credentials)
       val instanceStates = awsClient.describeInstanceHealth(instanceHealthRequest).getInstanceStates.asScala.toSeq
       val unhealthyInstances = instanceStates.filter(p => p.getState != "InService")
 
