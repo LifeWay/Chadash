@@ -5,6 +5,7 @@ import actors.WorkflowLog.SubscribeToMe
 import actors._
 import akka.pattern.ask
 import akka.util.Timeout
+import com.google.inject.Inject
 import models.{DeleteStack, Deployment}
 import play.api.Logger
 import play.api.Play.current
@@ -17,7 +18,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.lifeway.chadash.appversion.BuildInfo
 
-object Application extends Controller {
+class Application @Inject()(deploymentActor: DeploymentActor) extends Controller {
 
   val jvmVersion = java.lang.System.getProperty("java.version")
   val jvmVendor = java.lang.System.getProperty("java.vendor")
@@ -31,7 +32,7 @@ object Application extends Controller {
         deployment => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.DeployRequest(stackPath, deployment.version, deployment.amiId)
+            res <- deploymentActor.actor ? DeploymentSupervisor.DeployRequest(stackPath, deployment.version, deployment.amiId)
           ) yield res
 
           f.map {
@@ -52,7 +53,7 @@ object Application extends Controller {
         delete => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- ChadashSystem.deploymentSupervisor ? DeploymentSupervisor.DeleteStack(stackPath, delete.version)
+            res <- deploymentActor.actor ? DeploymentSupervisor.DeleteStack(stackPath, delete.version)
           ) yield res
 
           f.map {
@@ -68,7 +69,7 @@ object Application extends Controller {
     WebSocket.tryAcceptWithActor[String, String] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
       val f = for (
-        res <- ChadashSystem.deploymentSupervisor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)
+        res <- deploymentActor.actor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)
       ) yield res
 
       f.map {

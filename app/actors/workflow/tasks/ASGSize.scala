@@ -4,7 +4,7 @@ import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.model.{DescribeAutoScalingGroupsRequest, SetDesiredCapacityRequest}
-import utils.AmazonAutoScalingService
+import utils.{AmazonAutoScalingService, PropFactory}
 
 import scala.collection.JavaConverters._
 
@@ -32,11 +32,11 @@ class ASGSize(credentials: AWSCredentials) extends AWSRestartableActor with Amaz
   }
 }
 
-object ASGSize {
+object ASGSize extends PropFactory {
   case class ASGDesiredSizeQuery(asgName: String)
   case class ASGDesiredSizeResult(size: Int)
   case class ASGSetDesiredSizeCommand(asgName: String, size: Int)
   case object ASGSetDesiredSizeRequested
 
-  def props(credentials: AWSCredentials): Props = Props(new ASGSize(credentials))
+  override def props(args: Any*): Props = Props(classOf[ASGSize], args: _*)
 }

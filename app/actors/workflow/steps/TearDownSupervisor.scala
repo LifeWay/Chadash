@@ -10,9 +10,11 @@ import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
+import utils.{ActorFactory, PropFactory}
 
-class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState, TearDownData] with ActorLogging
-                                                              with AWSSupervisorStrategy {
+class TearDownSupervisor(credentials: AWSCredentials,
+                         actorFactory: ActorFactory) extends FSM[TearDownState, TearDownData] with ActorLogging
+                                                             with AWSSupervisorStrategy {
 
   import actors.workflow.steps.TearDownSupervisor._
 
@@ -20,7 +22,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
 
   when(AwaitingTearDownCommand) {
     case Event(TearDownCommand(oldStack, newASG), Uninitialized) =>
-      val stackInfo = context.actorOf(StackInfo.props(credentials), "stackInfo")
+      val stackInfo = actorFactory(StackInfo, context, "stackInfo", credentials)
       context.watch(stackInfo)
       stackInfo ! StackIdQuery(oldStack)
       goto(AwaitingStackIdResponse) using InitialData(oldStack, newASG)
@@ -32,7 +34,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
       context.stop(sender())
 
       context.parent ! LogMessage(s"Deleting old stack: $oldStack")
-      val deleteStack = context.actorOf(DeleteStack.props(credentials), "stackDeleter")
+      val deleteStack = actorFactory(DeleteStack, context, "stackDeleter", credentials)
       context.watch(deleteStack)
       deleteStack ! DeleteStackCommand(oldStack)
       goto(AwaitingStackDeletedResponse) using DeleteStackData(oldStack, oldStackId, newASG)
@@ -44,7 +46,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
       context.stop(sender())
 
       context.parent ! LogMessage(s"Old stack has been requested to be deleted. Monitoring delete progress")
-      val stackDeleteMonitor = context.actorOf(StackDeleteCompleteMonitor.props(credentials, stackData.oldStackId, stackData.oldStackName))
+      val stackDeleteMonitor = actorFactory(StackDeleteCompleteMonitor, context, "stackDeleteMonitor", credentials, stackData.oldStackId, stackData.oldStackName)
       context.watch(stackDeleteMonitor)
       goto(AwaitingStackDeleteCompleted)
   }
@@ -55,7 +57,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
       context.stop(sender())
 
       context.parent ! LogMessage(s"Old stack has reached DELETE_COMPLETE status. Resuming all scaling activities on new stack")
-      val asgResume = context.actorOf(UnfreezeASG.props(credentials), "asgResume")
+      val asgResume = actorFactory(UnfreezeASG, context, "asgResume", credentials)
       context.watch(asgResume)
       asgResume ! UnfreezeASGCommand(stackData.newStackASG)
       goto(AwaitingUnfreezeASGResponse)
@@ -94,7 +96,7 @@ class TearDownSupervisor(credentials: AWSCredentials) extends FSM[TearDownState,
   initialize()
 }
 
-object TearDownSupervisor {
+object TearDownSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait TearDownMessage
   case class TearDownCommand(oldStackName: String, newStackASG: String) extends TearDownMessage
@@ -114,5 +116,5 @@ object TearDownSupervisor {
   case class InitialData(oldStackName: String, newStackASG: String) extends TearDownData
   case class DeleteStackData(oldStackName: String, oldStackId: String, newStackASG: String) extends TearDownData
 
-  def props(credentials: AWSCredentials): Props = Props(new TearDownSupervisor(credentials))
+  override def props(args: Any*): Props = Props(classOf[TearDownSupervisor], args: _*)
 }

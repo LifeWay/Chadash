@@ -8,6 +8,7 @@ import com.amazonaws.services.s3.model.S3Object
 import org.apache.commons.io.IOUtils
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
+import utils.PropFactory
 
 class StackLoader(credentials: AWSCredentials, bucketName: String) extends AWSRestartableActor {
 
@@ -23,11 +24,11 @@ class StackLoader(credentials: AWSCredentials, bucketName: String) extends AWSRe
   }
 }
 
-object StackLoader {
+object StackLoader extends PropFactory {
 
   case class LoadStack(stackPath: String)
 
   case class StackLoaded(stackJson: JsValue)
 
-  def props(creds: AWSCredentials, bucketName: String): Props = Props(new StackLoader(creds, bucketName))
+  override def props(args: Any*): Props = Props(classOf[StackLoader], args: _*)
 }

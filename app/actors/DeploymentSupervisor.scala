@@ -7,6 +7,7 @@ import actors.workflow.WorkflowManager._
 import actors.workflow.steps.DeleteStackSupervisor.DeleteExistingStack
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
+import utils.ActorFactory
 
 /**
  * The deployment supervisor is responsible for the mgmt of the actor hierarchies on a per stackname
@@ -18,7 +19,7 @@ import akka.actor._
  * In general, this is the "window" into the deployment from which the controllers send their commands and queries
  * from the HTTP requests.
  */
-class DeploymentSupervisor extends Actor with ActorLogging {
+class DeploymentSupervisor(actorFactory: ActorFactory) extends Actor with ActorLogging {
 
   import actors.DeploymentSupervisor._
 
@@ -34,7 +35,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
           sender ! WorkflowInProgress
         case None =>
           val deploymentLog = getLogActor(deploy)
-          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), deploy.stackName)
+          val workflowActor = actorFactory(WorkflowManager, context, deploy.stackName, deploymentLog, actorFactory)
           context.watch(workflowActor)
           workflowActor forward StartDeployWorkflow(deploy)
       }
@@ -46,7 +47,7 @@ class DeploymentSupervisor extends Actor with ActorLogging {
           sender ! WorkflowInProgress
         case None => {
           val deploymentLog = getLogActor(msg.stackPath, msg.appVersion)
-          val workflowActor = context.actorOf(WorkflowManager.props(deploymentLog), stackName)
+          val workflowActor = actorFactory(WorkflowManager, context, stackName, deploymentLog, actorFactory)
           context.watch(workflowActor)
           workflowActor forward StartDeleteWorkflow(stackName)
         }
@@ -92,7 +93,7 @@ object DeploymentSupervisor {
   case object WorkflowInProgress
   case object NoWorkflow
 
-  def props(): Props = Props(new DeploymentSupervisor())
+  def props(actorFactory: ActorFactory): Props = Props(new DeploymentSupervisor(actorFactory))
 
   val awsStackNamePattern = "[^\\w-]".r
   def stackNameBuilder(stackPath: String, version: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath-v$version", "-")

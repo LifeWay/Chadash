@@ -41,8 +41,6 @@ object ASGInfo extends PropFactory {
   case class ASGInServiceInstancesAndELBSQuery(asgName: String)
   case class ASGInServiceInstancesAndELBSResult(elbNames: Seq[String], instanceIds: Seq[String])
 
-  def props(args: Any*): Props = Props(classOf[ASGInfo], args)
-
-  def props(credentials: AWSCredentials): Props = Props(new ASGInfo(credentials))
+  override def props(args: Any*): Props = Props(classOf[ASGInfo], args: _*)
 }
 

@@ -6,6 +6,7 @@ import akka.actor.{Props, ActorLogging, Actor}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import utils.PropFactory
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -40,12 +41,11 @@ class StackDeleteCompleteMonitor(credentials: AWSCredentials, stackId: String, s
   def scheduleTick() = context.system.scheduler.scheduleOnce(5.seconds, self, Tick)
 }
 
-object StackDeleteCompleteMonitor {
+object StackDeleteCompleteMonitor extends PropFactory{
 
   case object Tick
 
   case class StackDeleteCompleted(stackName: String)
 
-  def props(credentials: AWSCredentials, stackId: String, stackName: String): Props = Props(new StackDeleteCompleteMonitor(credentials, stackId, stackName))
-
+  override def props(args: Any*): Props = Props(classOf[StackDeleteCompleteMonitor], args: _*)
 }

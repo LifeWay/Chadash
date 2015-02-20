@@ -3,9 +3,8 @@ package actors.workflow.tasks
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.DeleteStackRequest
-import utils.AmazonCloudFormationService
+import utils.{AmazonCloudFormationService, PropFactory}
 
 class DeleteStack(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
 
@@ -23,9 +22,9 @@ class DeleteStack(credentials: AWSCredentials) extends AWSRestartableActor with 
   }
 }
 
-object DeleteStack {
+object DeleteStack extends PropFactory {
   case class DeleteStackCommand(stackName: String)
   case object StackDeleteRequested
 
-  def props(credentials: AWSCredentials): Props = Props(new DeleteStack(credentials))
+  override def props(args: Any*): Props = Props(classOf[DeleteStack], args: _*)
 }

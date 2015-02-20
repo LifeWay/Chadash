@@ -9,12 +9,14 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.FSM.Failure
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
-import utils.ActorFactory
+import utils.{ActorFactory, PropFactory}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: Int, asgName: String, actorFactory: ActorFactory = ActorFactory) extends FSM[HealthyInstanceMonitorStates, HealthyInstanceData] with ActorLogging with AWSSupervisorStrategy {
+class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: Int, asgName: String,
+                                actorFactory: ActorFactory) extends FSM[HealthyInstanceMonitorStates, HealthyInstanceData]
+                                                                    with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.HealthyInstanceSupervisor._
 
@@ -35,11 +37,11 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
 
       msg.instanceIds.length match {
         case i if i >= expectedInstances =>
-          if(msg.elbNames.size > 0) {
+          if (msg.elbNames.size > 0) {
             stop(Failure("Chadash only supports scenarios with an ASG bound to a single ASG"))
           }
           val elb = msg.elbNames(0)
-          val healthChecker = context.actorOf(ELBHealthyInstanceChecker.props(credentials), s"elb-instance-health-$elb")
+          val healthChecker = actorFactory(ELBHealthyInstanceChecker, context, s"elb-instance-health-$elb", credentials)
           context.watch(healthChecker)
           healthChecker ! ELBIsInstanceListHealthy(elb, msg.instanceIds)
           goto(MonitoringELBHealth)
@@ -90,7 +92,7 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
   initialize()
 }
 
-object HealthyInstanceSupervisor {
+object HealthyInstanceSupervisor extends PropFactory {
   //Interaction Messages: None
   sealed trait HealthyInstanceSupervisorMessage
   case object CheckHealth extends HealthyInstanceSupervisorMessage
@@ -106,5 +108,6 @@ object HealthyInstanceSupervisor {
   sealed trait HealthyInstanceData
   case object Uninitialized extends HealthyInstanceData
 
-  def props(credentials: AWSCredentials, expectedInstances: Int, asgName: String): Props = Props(new HealthyInstanceSupervisor(credentials, expectedInstances, asgName))
+
+  override def props(args: Any*): Props = Props(classOf[HealthyInstanceSupervisor], args: _*)
 }

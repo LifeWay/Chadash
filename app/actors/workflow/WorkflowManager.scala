@@ -15,12 +15,16 @@ import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import com.typesafe.config.ConfigFactory
 import play.api.libs.json.Json
+import utils.{PropFactory, ActorFactory}
 
-class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowData] with ActorLogging {
+import scala.collection.mutable
+
+class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FSM[WorkflowState, WorkflowData]
+                                                                              with ActorLogging {
 
   import actors.workflow.WorkflowManager._
 
-  val appConfig = ConfigFactory.load()
+  val appConfig   = ConfigFactory.load()
   val stackBucket = appConfig.getString("chadash.stack-bucket")
 
   override def preStart(): Unit = {
@@ -47,14 +51,14 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
     case Event(CurrentCredentials(creds), DeployData(data)) =>
       context.unwatch(sender())
 
-      val loadStackSupervisor = context.actorOf(LoadStackSupervisor.props(creds), "loadStackSupervisor")
+      val loadStackSupervisor = actorFactory(LoadStackSupervisor, context, "loadStackSupervisor", creds, actorFactory)
       context.watch(loadStackSupervisor)
       loadStackSupervisor ! LoadStackCommand(stackBucket, data.stackPath)
       goto(AwaitingLoadStackResponse) using DeployDataWithCreds(data, creds)
 
     case Event(CurrentCredentials(creds), DeleteData(stackName)) =>
       context.unwatch(sender())
-      val deleteStackSupervisor = context.actorOf(DeleteStackSupervisor.props(creds), "deleteStackSupervisor")
+      val deleteStackSupervisor = actorFactory(DeleteStackSupervisor, context, "deleteStackSupervisor", creds, actorFactory)
       context.watch(deleteStackSupervisor)
       deleteStackSupervisor ! DeleteExistingStack(stackName)
       goto(AwaitingDeleteStackResponse)
@@ -66,7 +70,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       logActor ! LogMessage("Stack JSON data loaded. Querying for existing stack")
 
       val stepData: Map[String, String] = Map("stackFileContents" -> stackJson.toString())
-      val validateAndFreezeSupervisor = context.actorOf(ValidateAndFreezeSupervisor.props(creds), "validateAndFreezeSupervisor")
+      val validateAndFreezeSupervisor = actorFactory(ValidateAndFreezeSupervisor, context, "validateAndFreezeSupervisor", creds, actorFactory)
       context.watch(validateAndFreezeSupervisor)
       validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath)
       goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
@@ -87,7 +91,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       context.unwatch(sender())
       logActor ! LogMessage("No existing stacks found. First-time stack launch")
 
-      val stackLauncher = context.actorOf(NewStackSupervisor.props(creds))
+      val stackLauncher = actorFactory(NewStackSupervisor, context, "newStackSupervisor", creds, actorFactory)
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
@@ -101,7 +105,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
       context.unwatch(sender())
 
       val newStepData = stepData + ("oldStackName" -> oldStackName)
-      val stackLauncher = context.actorOf(NewStackSupervisor.props(creds))
+      val stackLauncher = actorFactory(NewStackSupervisor, context, "newStackSupervisor", creds, actorFactory)
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
@@ -123,7 +127,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
     case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
       context.unwatch(sender())
       logActor ! LogMessage("The next version of the stack has been successfully deployed.")
-      val tearDownSupervisor = context.actorOf(TearDownSupervisor.props(creds), "tearDownSupervisor")
+      val tearDownSupervisor = actorFactory(TearDownSupervisor, context, "tearDownSupervisor", creds, actorFactory)
       context.watch(tearDownSupervisor)
       stepData.get("oldStackName") match {
         case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, newAsgName)
@@ -175,7 +179,7 @@ class WorkflowManager(logActor: ActorRef) extends FSM[WorkflowState, WorkflowDat
   initialize()
 }
 
-object WorkflowManager {
+object WorkflowManager extends PropFactory {
   //Interaction Messages
   sealed trait WorkflowMessage
   case class StartDeployWorkflow(deploy: Deploy) extends WorkflowMessage
@@ -200,8 +204,9 @@ object WorkflowManager {
   case object Uninitialized extends WorkflowData
   case class DeployData(deploy: Deploy) extends WorkflowData
   case class DeployDataWithCreds(deploy: Deploy, creds: AWSCredentials) extends WorkflowData
-  case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentials, stepData: Map[String, String] = Map.empty[String, String]) extends WorkflowData
+  case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentials,
+                                          stepData: Map[String, String] = Map.empty[String, String]) extends WorkflowData
   case class DeleteData(stackName: String) extends WorkflowData
 
-  def props(logActor: ActorRef): Props = Props(new WorkflowManager(logActor))
+  def props(args: Any*): Props = Props(classOf[WorkflowManager], args: _*)
 }

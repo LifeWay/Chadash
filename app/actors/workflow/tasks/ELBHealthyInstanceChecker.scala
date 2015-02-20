@@ -5,6 +5,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, Instance}
+import utils.PropFactory
 
 import scala.collection.JavaConverters._
 
@@ -33,7 +34,7 @@ class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestarta
   }
 }
 
-object ELBHealthyInstanceChecker {
+object ELBHealthyInstanceChecker extends PropFactory {
 
   case class ELBIsInstanceListHealthy(elbName: String, instances: Seq[String])
 
@@ -41,5 +42,5 @@ object ELBHealthyInstanceChecker {
 
   case class ELBInstanceListAllHealthy(elbName: String)
 
-  def props(credentials: AWSCredentials): Props = Props(new ELBHealthyInstanceChecker(credentials))
+  override def props(args: Any*): Props = Props(classOf[ELBHealthyInstanceChecker], args: _*)
 }

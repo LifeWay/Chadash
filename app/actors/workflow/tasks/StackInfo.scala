@@ -5,6 +5,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import utils.PropFactory
 
 import scala.collection.JavaConverters._
 
@@ -47,7 +48,7 @@ class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor {
   }
 }
 
-object StackInfo {
+object StackInfo extends PropFactory {
 
   case class StackASGNameQuery(stackName: String)
 
@@ -57,6 +58,6 @@ object StackInfo {
 
   case class StackIdResponse(stackId: String)
 
-  def props(credentials: AWSCredentials): Props = Props(new StackInfo(credentials))
+  override def props(args: Any*): Props = Props(classOf[StackInfo], args: _*)
 }
 

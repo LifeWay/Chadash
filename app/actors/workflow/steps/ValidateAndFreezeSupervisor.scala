@@ -11,8 +11,11 @@ import actors.workflow.tasks.{FreezeASG, StackInfo, StackList}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
+import utils.{ActorFactory, PropFactory}
 
-class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[ValidateAndFreezeStates, ValidateAndFreezeData] with ActorLogging with AWSSupervisorStrategy {
+class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
+                                  actorFactory: ActorFactory) extends FSM[ValidateAndFreezeStates, ValidateAndFreezeData]
+                                                                      with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.ValidateAndFreezeSupervisor._
 
@@ -20,7 +23,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
 
   when(AwaitingValidateAndFreezeCommand) {
     case Event(msg: ValidateAndFreezeStackCommand, Uninitialized) =>
-      val stackList = context.actorOf(StackList.props(credentials), "stackList")
+      val stackList = actorFactory(StackList, context, "stackList", credentials)
       context.watch(stackList)
       val stackName = DeploymentSupervisor.stackNameSansVersionBuilder(msg.stackPath)
       stackList ! ListNonDeletedStacksStartingWithName(stackName)
@@ -43,7 +46,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
 
         case 1 =>
           context.parent ! LogMessage("One running stack found, querying for the ASG name")
-          val asgFetcher = context.actorOf(StackInfo.props(credentials), "getASGName")
+          val asgFetcher = actorFactory(StackInfo, context, "getASGName", credentials)
           context.watch(asgFetcher)
           val stack = msg.stackList(0)
           asgFetcher ! StackASGNameQuery(stack)
@@ -57,7 +60,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
       context.stop(sender())
       context.parent ! LogMessage(s"ASG found, Requesting to suspend scaling activities for ASG: ${msg.asgName}")
 
-      val asgFreezer = context.actorOf(FreezeASG.props(credentials), "freezeASG")
+      val asgFreezer = actorFactory(FreezeASG, context, "freezeASG", credentials)
       context.watch(asgFreezer)
       asgFreezer ! FreezeASGCommand(msg.asgName)
       goto(AwaitingFreezeASGCompleted) using ExistingStackAndASG(stackName, msg.asgName)
@@ -96,7 +99,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials) extends FSM[Valid
   initialize()
 }
 
-object ValidateAndFreezeSupervisor {
+object ValidateAndFreezeSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait ValidateAndFreezeMessage
   case class ValidateAndFreezeStackCommand(stackPath: String) extends ValidateAndFreezeMessage
@@ -116,5 +119,5 @@ object ValidateAndFreezeSupervisor {
   case class ExistingStack(stackName: String) extends ValidateAndFreezeData
   case class ExistingStackAndASG(stackName: String, asgName: String) extends ValidateAndFreezeData
 
-  def props(credentials: AWSCredentials): Props = Props(new ValidateAndFreezeSupervisor(credentials))
+  override def props(args: Any*): Props = Props(classOf[ValidateAndFreezeSupervisor], args: _*)
 }

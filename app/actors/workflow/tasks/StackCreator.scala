@@ -7,6 +7,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
+import utils.PropFactory
 
 class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
 
@@ -41,11 +42,11 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor {
   }
 }
 
-object StackCreator {
+object StackCreator extends PropFactory{
 
   case class StackCreateCommand(stackName: String, imageId: String, version: String, stackData: JsValue)
 
   case object StackCreateRequestCompleted
 
-  def props(credentials: AWSCredentials): Props = Props(new StackCreator(credentials))
+  override def props(args: Any*): Props = Props(classOf[StackCreator], args: _*)
 }

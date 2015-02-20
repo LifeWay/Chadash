@@ -5,6 +5,7 @@ import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.ListStacksRequest
+import utils.PropFactory
 
 import scala.collection.JavaConverters._
 
@@ -32,11 +33,11 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
   }
 }
 
-object StackList {
+object StackList extends PropFactory {
 
   case class ListNonDeletedStacksStartingWithName(stackName: String)
 
   case class FilteredStacks(stackList: Seq[String])
 
-  def props(credentials: AWSCredentials): Props = Props(new StackList(credentials))
+  override def props(args: Any*): Props = Props(classOf[StackList], args: _*)
 }

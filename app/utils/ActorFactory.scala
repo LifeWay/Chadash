@@ -1,6 +1,6 @@
 package utils
 
-import akka.actor._
+import akka.actor.{ActorRef, ActorRefFactory, Props}
 
 trait PropFactory {
   def props(args: Any*): Props
@@ -12,6 +12,6 @@ trait ActorFactory {
 
 object ActorFactory extends ActorFactory {
   def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-    context.actorOf(ref.props(args), name)
+    context.actorOf(ref.props(args: _*), name)
   }
 }

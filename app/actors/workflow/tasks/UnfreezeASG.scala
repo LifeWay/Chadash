@@ -5,6 +5,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.autoscaling.model.ResumeProcessesRequest
+import utils.PropFactory
 
 class UnfreezeASG(credentials: AWSCredentials) extends AWSRestartableActor {
 
@@ -22,11 +23,11 @@ class UnfreezeASG(credentials: AWSCredentials) extends AWSRestartableActor {
   }
 }
 
-object UnfreezeASG {
+object UnfreezeASG extends PropFactory{
 
   case class UnfreezeASGCommand(asgName: String)
 
   case class UnfreezeASGCompleted(asgName: String)
 
-  def props(credentials: AWSCredentials): Props = Props(new UnfreezeASG(credentials))
+  override def props(args: Any*): Props = Props(classOf[UnfreezeASG], args: _*)
 }

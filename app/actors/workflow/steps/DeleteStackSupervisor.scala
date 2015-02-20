@@ -5,13 +5,15 @@ import actors.workflow.steps.DeleteStackSupervisor.{DeleteStackData, DeleteStack
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeleteRequested}
 import actors.workflow.tasks.StackDeleteCompleteMonitor.StackDeleteCompleted
 import actors.workflow.tasks.StackInfo.StackIdQuery
-import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo}
+import actors.workflow.tasks.{StackDeleteCompleteMonitor, DeleteStack, StackInfo}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
+import utils.{PropFactory, ActorFactory}
 
-class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStackStates, DeleteStackData]
-                                                                 with ActorLogging with AWSSupervisorStrategy {
+class DeleteStackSupervisor(credentials: AWSCredentials,
+                            actorFactory: ActorFactory) extends FSM[DeleteStackStates, DeleteStackData]
+                                                                with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.DeleteStackSupervisor._
 
@@ -19,7 +21,7 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
 
   when(AwaitingDeleteStackCommand) {
     case Event(msg: DeleteExistingStack, _) =>
-      val stackInfo = context.actorOf(StackInfo.props(credentials), "stackInfo")
+      val stackInfo = actorFactory(StackInfo, context, "stackInfo", credentials)
       context.watch(stackInfo)
       stackInfo ! StackIdQuery(msg.stackName)
       goto(AwaitingStackIdResponse) using StackName(msg.stackName)
@@ -29,7 +31,7 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
     case Event(msg: StackInfo.StackIdResponse, data: StackName) =>
       context.unwatch(sender())
       context.parent ! LogMessage(s"Deleting stack: ${data.stackName}")
-      val deleteStack = context.actorOf(DeleteStack.props(credentials), "stackDeleter")
+      val deleteStack = actorFactory(DeleteStack, context, "stackDeleter", credentials)
       context.watch(deleteStack)
       deleteStack ! DeleteStackCommand(data.stackName)
       goto(AwaitingStackDeletedResponse) using StackIdAndName(msg.stackId, data.stackName)
@@ -39,7 +41,7 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
     case Event(StackDeleteRequested, data: StackIdAndName) =>
       context.unwatch(sender())
       context.parent ! LogMessage(s"Stack has been requested to be deleted. Monitoring delete progress")
-      val monitor = context.actorOf(StackDeleteCompleteMonitor.props(credentials, data.stackId, data.stackName), "stackDeleteMonitor")
+      val monitor = actorFactory(StackDeleteCompleteMonitor, context, "stackDeleteMonitor", credentials, data.stackId, data.stackName)
       context.watch(monitor)
       goto(AwaitingStackDeleteCompleted)
   }
@@ -75,7 +77,7 @@ class DeleteStackSupervisor(credentials: AWSCredentials) extends FSM[DeleteStack
   initialize()
 }
 
-object DeleteStackSupervisor {
+object DeleteStackSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait DeleteStackMessage
   case class DeleteExistingStack(stackName: String) extends DeleteStackMessage
@@ -95,5 +97,5 @@ object DeleteStackSupervisor {
   case class StackName(stackName: String) extends DeleteStackData
   case class StackIdAndName(stackId: String, stackName: String) extends DeleteStackData
 
-  def props(credentials: AWSCredentials): Props = Props(new DeleteStackSupervisor(credentials))
+  override def props(args: Any*): Props = Props(classOf[DeleteStackSupervisor], args: _*)
 }

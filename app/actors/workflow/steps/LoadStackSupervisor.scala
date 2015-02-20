@@ -8,8 +8,11 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
 import play.api.libs.json.JsValue
+import utils.{PropFactory, ActorFactory}
 
-class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStates, LoadStackData] with ActorLogging with AWSSupervisorStrategy {
+class LoadStackSupervisor(credentials: AWSCredentials,
+                          actorFactory: ActorFactory) extends FSM[LoadStackStates, LoadStackData] with ActorLogging
+                                                              with AWSSupervisorStrategy {
 
   import actors.workflow.steps.LoadStackSupervisor._
 
@@ -17,7 +20,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStat
 
   when(AwaitingLoadStackCommand) {
     case Event(msg: LoadStackCommand, _) =>
-      val stackLoaderActor = context.actorOf(StackLoader.props(credentials, msg.bucketName), "loadStackFile")
+      val stackLoaderActor = actorFactory(StackLoader, context, "loadStackFile", credentials, msg.bucketName)
       context.watch(stackLoaderActor)
       stackLoaderActor ! LoadStack(msg.stackPath)
       goto(AwaitingStackData)
@@ -54,7 +57,7 @@ class LoadStackSupervisor(credentials: AWSCredentials) extends FSM[LoadStackStat
   initialize()
 }
 
-object LoadStackSupervisor {
+object LoadStackSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait LoadStackMessage
   case class LoadStackCommand(bucketName: String, stackPath: String)
@@ -69,5 +72,5 @@ object LoadStackSupervisor {
   sealed trait LoadStackData
   case object Uninitialized extends LoadStackData
 
-  def props(credentials: AWSCredentials): Props = Props(new LoadStackSupervisor(credentials))
+  override def props(args: Any*): Props = Props(classOf[LoadStackSupervisor], args: _*)
 }
