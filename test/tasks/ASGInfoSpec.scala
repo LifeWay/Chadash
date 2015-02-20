@@ -1,10 +1,10 @@
 package tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.AWSSupervisorStrategy
+import actors.workflow.{AWSRestartableActor, AWSSupervisorStrategy}
 import actors.workflow.tasks.ASGInfo
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
@@ -13,7 +13,7 @@ import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{FlatSpecLike, Matchers}
-import utils.TestConfiguration
+import utils.{ActorFactory, AmazonCloudFormationService, AmazonAutoScalingService, TestConfiguration}
 
 import scala.concurrent.duration._
 
@@ -38,11 +38,22 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
     override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
   })
 
+  object TestActorFactory extends ActorFactory {
+    def apply(clazz: AnyRef, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      //Match on actor classes you care about, pass the rest onto the "prod" factory.
+      clazz match {
+        case ASGInfo => context.actorOf(asgInfoProps, "asgInfo")
+        case _ => ActorFactory(clazz, context, name, args)
+      }
+    }
+  }
+
   "An ASGInfo fetcher" should "return a valid response if AWS is up" in {
     //Fabricate a parent so we can test messages coming back to the parent.
     val proxy = TestProbe()
     val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(asgInfoProps, "asgInfo")
+      val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
+      //val child = context.actorOf(asgInfoProps, "asgInfo")
 
       def receive = {
         case x if sender() == child => proxy.ref forward x
@@ -56,9 +67,9 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
 
   it should "throw an exception if AWS is down" in {
     val proxy = TestProbe()
-    val bigBoss = system.actorOf(Props(new Actor {
-      val childBoss = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = context.actorOf(asgInfoProps, "asgInfo")
+    val grandparent = system.actorOf(Props(new Actor {
+      val parent = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
+        val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
         def receive = {
           case x => child forward x
         }
@@ -66,11 +77,11 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
 
       def receive = {
         case x: LogMessage => proxy.ref forward x
-        case x => childBoss forward x
+        case x => parent forward x
       }
     }))
 
-    proxy.send(bigBoss, ASGInServiceInstancesAndELBSQuery("expect-fail"))
+    proxy.send(grandparent, ASGInServiceInstancesAndELBSQuery("expect-fail"))
     val msg = proxy.expectMsgClass(classOf[LogMessage])
     msg.message should include ("AmazonServiceException")
   }
@@ -79,7 +90,7 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
     //Fabricate a parent so we can test messages coming back to the parent.
     val proxy = TestProbe()
     val parent = system.actorOf(Props(new Actor with AWSSupervisorStrategy {
-      val child = context.actorOf(asgInfoProps, "asgInfo")
+      val child = TestActorFactory(ASGInfo, context, "asgInfo", null)
       context.watch(child)
 
       def receive = {

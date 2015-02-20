@@ -9,11 +9,12 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.FSM.Failure
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
+import utils.ActorFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: Int, asgName: String) extends FSM[HealthyInstanceMonitorStates, HealthyInstanceData] with ActorLogging with AWSSupervisorStrategy {
+class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: Int, asgName: String, actorFactory: ActorFactory = ActorFactory) extends FSM[HealthyInstanceMonitorStates, HealthyInstanceData] with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.HealthyInstanceSupervisor._
 
@@ -21,7 +22,7 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
 
   when(AwaitingCheckHealthRequest) {
     case Event(CheckHealth, _) =>
-      val asgInfo = context.actorOf(ASGInfo.props(credentials), "asgInfo")
+      val asgInfo = actorFactory(ASGInfo, context, "asgInfo", credentials)
       context.watch(asgInfo)
       asgInfo ! ASGInServiceInstancesAndELBSQuery(asgName)
       goto(MonitoringASGHealth)
