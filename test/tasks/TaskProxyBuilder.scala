@@ -10,7 +10,7 @@ object TaskProxyBuilder {
                               actorFactory: ActorFactory): ActorRef = {
     actorSystem.actorOf(Props(new Actor {
       val parent = context.actorOf(Props(new Actor with AWSSupervisorStrategy {
-        val child = actorFactory(ref, context, "", null)
+        val child = actorFactory(ref, context, null, null)
 
         def receive = {
           case x if sender() == child => context.parent ! x

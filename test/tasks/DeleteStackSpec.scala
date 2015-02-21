@@ -17,8 +17,7 @@ import utils.{ActorFactory, PropFactory, TestConfiguration}
 import scala.concurrent.duration._
 
 class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers
-                              with MockitoSugar {
+                              with Matchers with MockitoSugar {
 
   val mockedClient       = mock[AmazonCloudFormation]
   val failReq            = new DeleteStackRequest().withStackName("fail-stack")
