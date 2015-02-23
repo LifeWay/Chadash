@@ -1,4 +1,4 @@
-package tasks
+package workflow.tasks
 
 import java.io.ByteArrayInputStream
 

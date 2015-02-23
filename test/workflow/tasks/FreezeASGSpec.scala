@@ -1,4 +1,4 @@
-package tasks
+package workflow.tasks
 
 import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.FreezeASG

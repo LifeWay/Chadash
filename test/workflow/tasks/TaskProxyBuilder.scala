@@ -1,4 +1,4 @@
-package tasks
+package workflow.tasks
 
 import actors.workflow.AWSSupervisorStrategy
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
