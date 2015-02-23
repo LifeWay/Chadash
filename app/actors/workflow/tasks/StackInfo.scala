@@ -1,24 +1,23 @@
 package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
-import utils.PropFactory
+import utils.{AmazonCloudFormationService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor {
+class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
 
   import actors.workflow.tasks.StackInfo._
 
   override def receive: Receive = {
     case query: StackASGNameQuery =>
       val describeStackRequest = new DescribeStacksRequest()
-        .withStackName(query.stackName)
+                                 .withStackName(query.stackName)
 
-      val awsClient = new AmazonCloudFormationClient(credentials)
+      val awsClient = cloudFormationClient(credentials)
       val stacksResults = awsClient.describeStacks(describeStackRequest).getStacks.asScala.toSeq
 
       stacksResults.length match {
@@ -34,9 +33,9 @@ class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor {
 
     case msg: StackIdQuery =>
       val describeStacksRequest = new DescribeStacksRequest()
-        .withStackName(msg.stackName)
+                                  .withStackName(msg.stackName)
 
-      val awsClient = new AmazonCloudFormationClient(credentials)
+      val awsClient = cloudFormationClient(credentials)
       val stacksResults = awsClient.describeStacks(describeStacksRequest).getStacks.asScala.toSeq
 
       stacksResults.length match {
@@ -49,13 +48,9 @@ class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor {
 }
 
 object StackInfo extends PropFactory {
-
   case class StackASGNameQuery(stackName: String)
-
   case class StackASGNameResponse(asgName: String)
-
   case class StackIdQuery(stackName: String)
-
   case class StackIdResponse(stackId: String)
 
   override def props(args: Any*): Props = Props(classOf[StackInfo], args: _*)
