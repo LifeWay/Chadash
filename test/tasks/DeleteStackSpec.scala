@@ -20,10 +20,14 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
                               with Matchers with MockitoSugar {
 
   val mockedClient       = mock[AmazonCloudFormation]
+  val successReq         = new DeleteStackRequest().withStackName("delete-success")
   val failReq            = new DeleteStackRequest().withStackName("fail-stack")
   val clientExceptionReq = new DeleteStackRequest().withStackName("client-exception-stack")
 
-  Mockito.when(mockedClient.deleteStack(failReq)).thenThrow(new AmazonServiceException("failed"))
+  //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(org.mockito.Matchers.anyObject())
+  Mockito.doNothing().when(mockedClient).deleteStack(successReq)
+  Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).deleteStack(failReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).deleteStack(clientExceptionReq)
 
   val props = Props(new DeleteStack(null) {
@@ -46,7 +50,7 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, DeleteStack, system, TestActorFactory)
 
-    probe.send(proxy, DeleteStackCommand("test-stack-name"))
+    probe.send(proxy, DeleteStackCommand("delete-success"))
     probe.expectMsg(StackDeleteRequested)
   }
 

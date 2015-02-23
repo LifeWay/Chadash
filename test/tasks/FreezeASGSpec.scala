@@ -22,10 +22,12 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
                             with MockitoSugar {
 
   val mockedClient = mock[AmazonAutoScaling]
-  val successReq   = new SuspendProcessesRequest().withAutoScalingGroupName("test-asg").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
+  val successReq   = new SuspendProcessesRequest().withAutoScalingGroupName("freeze-success").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
   val reqFail      = new SuspendProcessesRequest().withAutoScalingGroupName("fail").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
   val reqClientExc = new SuspendProcessesRequest().withAutoScalingGroupName("client-exception").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
 
+  //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).suspendProcesses(org.mockito.Matchers.anyObject())
   Mockito.doNothing().when(mockedClient).suspendProcesses(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).suspendProcesses(reqFail)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).suspendProcesses(reqClientExc)
