@@ -124,7 +124,6 @@ class StackDeleteCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", Test
 
   class TestActorFactory(props: Props) extends ActorFactory {
     def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      //Match on actor classes you care about, pass the rest onto the "prod" factory.
       ref match {
         case StackDeleteCompleteMonitor => context.actorOf(props)
         case _ => ActorFactory(ref, context, name, args)

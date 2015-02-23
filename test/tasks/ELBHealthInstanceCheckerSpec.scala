@@ -37,21 +37,6 @@ class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestCo
   Mockito.when(mockedClient.describeInstanceHealth(failReq)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeInstanceHealth(clientExceptionReq)).thenThrow(new AmazonClientException("connection problems")).thenReturn(successResultAllHealthy)
 
-  val props = Props(new ELBHealthyInstanceChecker(null) {
-    override def pauseTime(): FiniteDuration = 5.milliseconds
-
-    override def elasticLoadBalancingClient(credentials: AWSCredentials) = mockedClient
-  })
-
-  object TestActorFactory extends ActorFactory {
-    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      ref match {
-        case ELBHealthyInstanceChecker => context.actorOf(props)
-        case _ => ActorFactory(ref, context, name, args)
-      }
-    }
-  }
-
   "A ELBHealthInstanceChecker actor" should "return an all healthy message if all instance are healthy" in {
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, ELBHealthyInstanceChecker, system, TestActorFactory)
@@ -83,5 +68,20 @@ class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestCo
 
     probe.send(proxy, ELBIsInstanceListHealthy("client-exception", Seq("instance-1")))
     probe.expectMsg(ELBInstanceListAllHealthy("client-exception"))
+  }
+
+  val props = Props(new ELBHealthyInstanceChecker(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
+    override def elasticLoadBalancingClient(credentials: AWSCredentials) = mockedClient
+  })
+
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case ELBHealthyInstanceChecker => context.actorOf(props)
+        case _ => ActorFactory(ref, context, name, args)
+      }
+    }
   }
 }

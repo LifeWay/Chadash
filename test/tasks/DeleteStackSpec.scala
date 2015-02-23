@@ -30,22 +30,6 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).deleteStack(failReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).deleteStack(clientExceptionReq)
 
-  val props = Props(new DeleteStack(null) {
-    override def pauseTime(): FiniteDuration = 5.milliseconds
-
-    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
-  })
-
-  object TestActorFactory extends ActorFactory {
-    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      //Match on actor classes you care about, pass the rest onto the "prod" factory.
-      ref match {
-        case DeleteStack => context.actorOf(props)
-        case _ => ActorFactory(ref, context, name, args)
-      }
-    }
-  }
-
   "A DeleteStack actor" should "request to delete the stack and return a response" in {
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, DeleteStack, system, TestActorFactory)
@@ -69,5 +53,20 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
 
     probe.send(proxy, DeleteStackCommand("client-exception-stack"))
     probe.expectMsg(StackDeleteRequested)
+  }
+
+  val props = Props(new DeleteStack(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
+    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+  })
+
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case DeleteStack => context.actorOf(props)
+        case _ => ActorFactory(ref, context, name, args)
+      }
+    }
   }
 }

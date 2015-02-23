@@ -25,26 +25,10 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   val clientExceptionReq = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
   val asg                = new AutoScalingGroup().withDesiredCapacity(10)
   val describeASGResult  = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
-
-
+  
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReq)).thenReturn(describeASGResult)
   Mockito.when(mockedClient.describeAutoScalingGroups(failReq)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeAutoScalingGroups(clientExceptionReq)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)
-
-  val props = Props(new ASGSize(null) {
-    override def pauseTime(): FiniteDuration = 5.milliseconds
-
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
-  })
-
-  object TestActorFactory extends ActorFactory {
-    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      ref match {
-        case ASGSize => context.actorOf(props)
-        case _ => ActorFactory(ref, context, name, args)
-      }
-    }
-  }
 
   "An ASGSize actor" should "return an ASG size response if an ASG is queried" in {
     val probe = TestProbe()
@@ -77,6 +61,21 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
 
     probe.send(proxy, ASGDesiredSizeQuery("client-exception"))
     probe.expectMsg(ASGDesiredSizeResult(10))
+  }
+
+  val props = Props(new ASGSize(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
+    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+  })
+
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case ASGSize => context.actorOf(props)
+        case _ => ActorFactory(ref, context, name, args)
+      }
+    }
   }
 
 }

@@ -70,7 +70,6 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
 
   object TestActorFactory extends ActorFactory {
     def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      //Match on actor classes you care about, pass the rest onto the "prod" factory.
       ref match {
         case StackCreator => context.actorOf(props)
         case _ => ActorFactory(ref, context, name, args)

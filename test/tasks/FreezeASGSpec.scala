@@ -32,23 +32,6 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).suspendProcesses(reqFail)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).suspendProcesses(reqClientExc)
 
-
-  val props = Props(new FreezeASG(null) {
-    override def pauseTime(): FiniteDuration = 5.milliseconds
-
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
-  })
-
-  object TestActorFactory extends ActorFactory {
-    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      //Match on actor classes you care about, pass the rest onto the "prod" factory.
-      ref match {
-        case FreezeASG => context.actorOf(props)
-        case _ => ActorFactory(ref, context, name, args)
-      }
-    }
-  }
-
   "A FreezeASG actor" should " return a freeze completed response if successful" in {
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, FreezeASG, system, TestActorFactory)
@@ -73,4 +56,20 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
     probe.send(proxy, FreezeASGCommand("client-exception"))
     probe.expectMsg(FreezeASGCompleted("client-exception"))
   }
+
+  val props = Props(new FreezeASG(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
+    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+  })
+
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case FreezeASG => context.actorOf(props)
+        case _ => ActorFactory(ref, context, name, args)
+      }
+    }
+  }
+
 }

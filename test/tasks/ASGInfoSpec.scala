@@ -31,22 +31,6 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqFail)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqClientExc)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)
 
-  val asgInfoProps = Props(new ASGInfo(null) {
-    override def pauseTime(): FiniteDuration = 5.milliseconds
-
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
-  })
-
-  object TestActorFactory extends ActorFactory {
-    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
-      //Match on actor classes you care about, pass the rest onto the "prod" factory.
-      ref match {
-        case ASGInfo => context.actorOf(asgInfoProps, "asgInfo")
-        case _ => ActorFactory(ref, context, name, args)
-      }
-    }
-  }
-
   "An ASGInfo fetcher" should "return a valid response if AWS is up" in {
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, ASGInfo, system, TestActorFactory)
@@ -70,5 +54,20 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
 
     probe.send(proxy, ASGInServiceInstancesAndELBSQuery("client-exception"))
     probe.expectMsg(ASGInServiceInstancesAndELBSResult(Seq("test-elb-name"), Seq("test-instance-id")))
+  }
+
+  val asgInfoProps = Props(new ASGInfo(null) {
+    override def pauseTime(): FiniteDuration = 5.milliseconds
+
+    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+  })
+
+  object TestActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case ASGInfo => context.actorOf(asgInfoProps, "asgInfo")
+        case _ => ActorFactory(ref, context, name, args)
+      }
+    }
   }
 }
