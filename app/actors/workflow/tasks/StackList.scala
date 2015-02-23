@@ -3,13 +3,12 @@ package actors.workflow.tasks
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 import com.amazonaws.services.cloudformation.model.ListStacksRequest
-import utils.PropFactory
+import utils.{AmazonCloudFormationService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
+class StackList(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
 
   import actors.workflow.tasks.StackList._
 
@@ -22,9 +21,9 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
         DELETE_IN_PROGRESS, UPDATE_COMPLETE_CLEANUP_IN_PROGRESS, UPDATE_IN_PROGRESS, UPDATE_COMPLETE, UPDATE_ROLLBACK_COMPLETE, UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS,
         UPDATE_ROLLBACK_FAILED, UPDATE_ROLLBACK_IN_PROGRESS)
       val listStackRequests = new ListStacksRequest()
-        .withStackStatusFilters(stackStatusFilters.toArray: _*)
+                              .withStackStatusFilters(stackStatusFilters.toArray: _*)
 
-      val awsClient = new AmazonCloudFormationClient(credentials)
+      val awsClient = cloudFormationClient(credentials)
       val results = awsClient.listStacks(listStackRequests).getStackSummaries.asScala.toSeq
       val filteredResults = results.filter(p => p.getStackName.startsWith(query.stackName))
       val filteredStackNames = filteredResults.foldLeft(Seq.empty[String])((sum, i) => sum :+ i.getStackName)
@@ -34,9 +33,7 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor {
 }
 
 object StackList extends PropFactory {
-
   case class ListNonDeletedStacksStartingWithName(stackName: String)
-
   case class FilteredStacks(stackList: Seq[String])
 
   override def props(args: Any*): Props = Props(classOf[StackList], args: _*)
