@@ -34,7 +34,7 @@ class StackInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   Mockito.doReturn(asgSuccessResult).when(mockedClient).describeStacks(asgSuccessReq)
   Mockito.doReturn(idSuccessResult).when(mockedClient).describeStacks(idSuccessReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeStacks(failReq)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(idSuccessResult).when(mockedClient) describeStacks (clientExceptionReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(idSuccessResult).when(mockedClient).describeStacks(clientExceptionReq)
 
   "A StackInfo actor" should "return the name of the ASG for a given stack" in {
     val probe = TestProbe()
