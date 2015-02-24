@@ -6,7 +6,7 @@ import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
-import com.amazonaws.services.autoscaling.model.{AutoScalingGroup, DescribeAutoScalingGroupsRequest, DescribeAutoScalingGroupsResult}
+import com.amazonaws.services.autoscaling.model.{AutoScalingGroup, DescribeAutoScalingGroupsRequest, DescribeAutoScalingGroupsResult, SetDesiredCapacityRequest}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
@@ -18,16 +18,20 @@ import scala.concurrent.duration._
 class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with
                           Matchers with MockitoSugar {
 
-  val mockedClient       = mock[AmazonAutoScaling]
-  val describeASGReq     = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
-  val failReq            = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("expect-fail")
-  val clientExceptionReq = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
-  val asg                = new AutoScalingGroup().withDesiredCapacity(10)
-  val describeASGResult  = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
+  val mockedClient         = mock[AmazonAutoScaling]
+  val describeASGReq       = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
+  val failReq              = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("expect-fail")
+  val clientExceptionReq   = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
+  val asg                  = new AutoScalingGroup().withDesiredCapacity(10)
+  val describeASGResult    = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
+  val desiredCapSetRequest = new SetDesiredCapacityRequest().withAutoScalingGroupName("resize-asg-name").withDesiredCapacity(5)
 
+
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).setDesiredCapacity(org.mockito.Matchers.anyObject())
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReq)).thenReturn(describeASGResult)
-  Mockito.when(mockedClient.describeAutoScalingGroups(failReq)).thenThrow(new AmazonServiceException("failed"))
-  Mockito.when(mockedClient.describeAutoScalingGroups(clientExceptionReq)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)
+  Mockito.doNothing().when(mockedClient).setDesiredCapacity(desiredCapSetRequest)
+  Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeAutoScalingGroups(failReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(describeASGResult).when(mockedClient).describeAutoScalingGroups(clientExceptionReq)
 
   "An ASGSize actor" should "return an ASG size response if an ASG is queried" in {
     val probe = TestProbe()
@@ -41,7 +45,7 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, ASGSize, system, TestActorFactory)
 
-    probe.send(proxy, ASGSetDesiredSizeCommand("test-asg-name", 5))
+    probe.send(proxy, ASGSetDesiredSizeCommand("resize-asg-name", 5))
     probe.expectMsg(ASGSetDesiredSizeRequested)
   }
 
