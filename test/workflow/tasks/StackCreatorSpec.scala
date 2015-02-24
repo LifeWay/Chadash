@@ -76,6 +76,4 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
       }
     }
   }
-
-
 }
