@@ -7,8 +7,8 @@ version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
 scalaVersion := "2.11.5"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
-lazy val root = (project in file(".")).enablePlugins(PlayScala).configs(IntegrationTest).settings(
-  Defaults.itSettings: _*
+lazy val root = (project in file(".")).enablePlugins(PlayScala).settings(
+  javaOptions in Test += "-Dconfig.file=conf/application.test.conf"
 )
 
 libraryDependencies ++= Seq(

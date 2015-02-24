@@ -1,6 +1,7 @@
 package global
 
 import actors.ChadashSystem
+import com.google.inject.{Guice, Module}
 import play.api.mvc.{EssentialAction, Filters}
 import play.api.{Application, GlobalSettings, Logger}
 import play.filters.gzip.GzipFilter
@@ -10,10 +11,10 @@ trait AppGlobalSettings extends GlobalSettings {
 
   private var INJECTOR: Option[com.google.inject.Injector] = None
 
-  def createInjector(): Option[com.google.inject.Injector]
+  def injectorModules(): Seq[Module]
 
   override def onStart(app: Application) {
-    INJECTOR = createInjector();
+    INJECTOR = Some(Guice.createInjector(injectorModules(): _*))
   }
 
   override def onStop(app: Application) {
