@@ -1,9 +1,8 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import java.io.ByteArrayInputStream
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.StackLoader
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}

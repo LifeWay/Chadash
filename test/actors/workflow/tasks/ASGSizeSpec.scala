@@ -1,7 +1,6 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.ASGSize
 import actors.workflow.tasks.ASGSize._
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
@@ -25,7 +24,7 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   val clientExceptionReq = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
   val asg                = new AutoScalingGroup().withDesiredCapacity(10)
   val describeASGResult  = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
-  
+
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReq)).thenReturn(describeASGResult)
   Mockito.when(mockedClient.describeAutoScalingGroups(failReq)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeAutoScalingGroups(clientExceptionReq)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)

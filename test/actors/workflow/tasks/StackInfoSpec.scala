@@ -1,7 +1,6 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.StackInfo
 import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse, StackIdQuery, StackIdResponse}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}

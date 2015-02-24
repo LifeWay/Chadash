@@ -1,7 +1,6 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.ASGInfo
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}

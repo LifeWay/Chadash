@@ -1,7 +1,6 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.UnfreezeASG
 import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCommand, UnfreezeASGCompleted}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}

@@ -1,7 +1,6 @@
-package workflow.tasks
+package actors.workflow.tasks
 
 import actors.WorkflowLog.LogMessage
-import actors.workflow.tasks.DeleteStack
 import actors.workflow.tasks.DeleteStack.{DeleteStackCommand, StackDeleteRequested}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
