@@ -75,6 +75,4 @@ class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
       }
     }
   }
-
-
 }
