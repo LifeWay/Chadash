@@ -21,7 +21,7 @@ import com.lifeway.chadash.appversion.BuildInfo
 class Application @Inject()(deploymentActor: DeploymentActor) extends Controller {
 
   val jvmVersion = java.lang.System.getProperty("java.version")
-  val jvmVendor = java.lang.System.getProperty("java.vendor")
+  val jvmVendor  = java.lang.System.getProperty("java.vendor")
 
   def deploy(stackPath: String) = Action.async(BodyParsers.parse.json) { implicit request =>
     Authentication.checkAuth(stackPath) { userId =>
@@ -57,8 +57,8 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
           ) yield res
 
           f.map {
-            case x@WorkflowInProgress => Forbidden(s"$x")
-            case x@_ => Ok(s"$x")
+            case x @ WorkflowInProgress => Forbidden(s"$x")
+            case x @ _ => Ok(s"$x")
           }
         }
       )
@@ -66,7 +66,7 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
   }
 
   def statusSocket(appName: String, version: String) = {
-    WebSocket.tryAcceptWithActor[String, String] { request =>
+    WebSocket.tryAcceptWithActor[String, JsValue] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
       val f = for (
         res <- deploymentActor.actor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)
