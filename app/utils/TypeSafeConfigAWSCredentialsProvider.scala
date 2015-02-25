@@ -3,7 +3,7 @@ package utils
 import com.amazonaws.auth.{AWSCredentials, AWSCredentialsProvider}
 import com.typesafe.config.Config
 
-class TypeSafeConfigAWSCredentialsProvider(config: Config) extends AWSCredentialsProvider {
+class TypesafeConfigAWSCredentialsProvider(config: Config) extends AWSCredentialsProvider {
   override def getCredentials: AWSCredentials = {
     new AWSCredentials {
       override def getAWSAccessKeyId: String = config.getString("aws.accessKey")

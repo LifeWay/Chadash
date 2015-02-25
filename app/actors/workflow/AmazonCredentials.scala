@@ -3,7 +3,7 @@ package actors
 import akka.actor.{Actor, ActorLogging}
 import com.amazonaws.auth._
 import com.typesafe.config.ConfigFactory
-import utils.TypeSafeConfigAWSCredentialsProvider
+import utils.TypesafeConfigAWSCredentialsProvider
 
 import scala.concurrent.duration._
 
@@ -51,7 +51,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
       val provider: AWSCredentialsProvider = credentialsProvider match {
         case "DefaultAWSCredentialsProviderChain" => new DefaultAWSCredentialsProviderChain()
-        case "PlayConfig" => new TypeSafeConfigAWSCredentialsProvider(config)
+        case "TypesafeConfigAWSCredentialsProvider" => new TypesafeConfigAWSCredentialsProvider(config)
         case "InstanceProfileCredentialsProvider" => new InstanceProfileCredentialsProvider()
         case "ClasspathPropertiesFileCredentialsProvider" => new ClasspathPropertiesFileCredentialsProvider()
         case "EnvironmentVariableCredentialsProvider" => new EnvironmentVariableCredentialsProvider()
