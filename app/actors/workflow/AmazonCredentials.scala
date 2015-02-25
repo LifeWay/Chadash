@@ -17,7 +17,7 @@ class AmazonCredentials extends Actor with ActorLogging {
 
   import actors.AmazonCredentials._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   val tick = context.system.scheduler.schedule(1.minute, 30.minutes, self, Tick)
 
@@ -68,17 +68,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 }
 
 object AmazonCredentials {
-
   case object Tick
-
   case object Initialize
-
   case object RequestCredentials
-
   case object ForceReload
-
   case object NoCredentials
-
   case class CurrentCredentials(credentials: AWSCredentials)
-
 }
