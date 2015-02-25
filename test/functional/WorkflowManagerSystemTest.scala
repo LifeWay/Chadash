@@ -5,7 +5,7 @@ import java.io.ByteArrayInputStream
 import actors.DeploymentSupervisor
 import actors.WorkflowLog.{LogMessage, WatchThisWorkflow}
 import actors.workflow.WorkflowManager
-import actors.workflow.WorkflowManager.{StartDeployWorkflow, WorkflowCompleted, WorkflowStarted}
+import actors.workflow.WorkflowManager.{StartDeleteWorkflow, StartDeployWorkflow, WorkflowCompleted, WorkflowStarted}
 import actors.workflow.tasks.StackCreateCompleteMonitor.Tick
 import actors.workflow.tasks._
 import akka.actor._
@@ -94,9 +94,34 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     sendingProbe.expectMsg(WorkflowCompleted)
   }
 
-//    it should "complete a delete workflow when the transition is valid" in {
-//      fail()
-//    }
+  it should "complete a delete workflow when the transition is valid" in {
+    val sendingProbe = TestProbe()
+    val loggingProbe = TestProbe()
+
+    val actor = system.actorOf(Props(new Actor with ActorLogging {
+      def receive = {
+        case a: Any =>
+          loggingProbe.ref forward a
+          log.debug(a.toString)
+      }
+    }))
+
+    val workflowProps = Props(new WorkflowManager(actor, DeleteStackActorFactory))
+    val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
+
+    sendingProbe.send(workflowProxy, StartDeleteWorkflow("chadash-updatestack-somename-v1-2"))
+    sendingProbe.expectMsg(WorkflowStarted)
+    loggingProbe.expectMsg(WatchThisWorkflow)
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Deleting stack: chadash")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack has been requested to be deleted")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack has reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("The stack has been deleted")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Delete complete")
+    sendingProbe.expectMsg(WorkflowCompleted)
+  }
   //
   //  it should "restart flawlessly if AWS has connection issues" in {
   //    fail()
@@ -120,7 +145,6 @@ object WorkflowManagerSystemTest {
         case actors.workflow.tasks.ASGSize => context.actorOf(PropsAndMocks.ASGSize.props, name)
         case actors.workflow.tasks.ASGInfo => context.actorOf(PropsAndMocks.ASGInfo.props, name)
         case actors.workflow.tasks.ELBHealthyInstanceChecker => context.actorOf(PropsAndMocks.ELBHealthyInstanceChecker.props, name)
-        case actors.workflow.tasks.StackDeleteCompleteMonitor => context.actorOf(PropsAndMocks.StackDeleteCompleteMonitor.props, name)
         case actors.workflow.tasks.UnfreezeASG => context.actorOf(PropsAndMocks.UnfreezeASG.props, name)
         case actors.workflow.tasks.DeleteStack => context.actorOf(PropsAndMocks.DeleteStack.props, name)
         case actors.workflow.steps.HealthyInstanceSupervisor => ActorFactory(ref, context, name, args: _*)
@@ -129,14 +153,13 @@ object WorkflowManagerSystemTest {
         case actors.workflow.steps.TearDownSupervisor => ActorFactory(ref, context, name, args: _*)
         case actors.workflow.steps.ValidateAndFreezeSupervisor => ActorFactory(ref, context, name, args: _*)
         case actors.workflow.steps.NewStackSupervisor => ActorFactory(ref, context, name, args: _*)
-        //case _ => ActorFactory(ref, context, name, args: _*)
       }
     }
   }
   object NewStackActorFactory extends ActorFactory {
     def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
       ref match {
-        case actors.workflow.tasks.StackCreateCompleteMonitor => context.actorOf(PropsAndMocks.StackCreateCompleteMonitor.props, "test-stack-create-complete-monitor")
+        case actors.workflow.tasks.StackCreateCompleteMonitor => context.actorOf(PropsAndMocks.StackCreateCompleteMonitor.props, name)
         case _ => TestActorFactory(ref, context, name, args: _*)
       }
     }
@@ -144,7 +167,16 @@ object WorkflowManagerSystemTest {
   object UpdateStackActorFactory extends ActorFactory {
     def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
       ref match {
-        case actors.workflow.tasks.StackCreateCompleteMonitor => context.actorOf(PropsAndMocks.StackCreateCompleteMonitor.updateProps, "test-stack-create-complete-monitor")
+        case actors.workflow.tasks.StackCreateCompleteMonitor => context.actorOf(PropsAndMocks.StackCreateCompleteMonitor.updateProps, name)
+        case actors.workflow.tasks.StackDeleteCompleteMonitor => context.actorOf(PropsAndMocks.StackDeleteCompleteMonitor.props, name)
+        case _ => TestActorFactory(ref, context, name, args: _*)
+      }
+    }
+  }
+  object DeleteStackActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case actors.workflow.tasks.StackDeleteCompleteMonitor => context.actorOf(PropsAndMocks.StackDeleteCompleteMonitor.deleteStack, name)
         case _ => TestActorFactory(ref, context, name, args: _*)
       }
     }
@@ -266,8 +298,15 @@ object WorkflowManagerSystemTest {
       val idStack         = new Stack().withStackId("some-stack-id")
       val idSuccessResult = new DescribeStacksResult().withStacks(idStack)
 
+      val deleteReq           = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-v1-2")
+      val deleteReqOutput     = new Output().withOutputKey("ChadashASG").withOutputValue("chadash-updatestack-somename-v1-2-asg35978123")
+      val deleteStackId       = new Stack().withStackId("delete-stack-id")
+      val deleteStackIdResult = new DescribeStacksResult().withStacks(deleteStackId)
+
 
       Mockito.doReturn(asgSuccessResult).doReturn(idSuccessResult).when(mockedClient).describeStacks(successReq)
+      Mockito.doReturn(deleteStackIdResult).when(mockedClient).describeStacks(deleteReq)
+      Mockito.doReturn(asgUpdateResult).when(mockedClient).describeStacks(asgUpdateReq)
       Mockito.doReturn(asgUpdateResult).when(mockedClient).describeStacks(asgUpdateReq)
 
 
@@ -352,16 +391,26 @@ object WorkflowManagerSystemTest {
     }
 
     object StackDeleteCompleteMonitor {
-      val mockedClient      = mock[AmazonCloudFormation]
-      val deleteCompleteReq = new DescribeStacksRequest().withStackName("some-stack-id")
-      val stackComplete     = new Stack().withStackStatus(StackStatus.DELETE_COMPLETE)
-      val stackPending      = new Stack().withStackStatus(StackStatus.DELETE_IN_PROGRESS)
-      val stackPendingResp  = new DescribeStacksResult().withStacks(stackPending)
-      val stackCompleteResp = new DescribeStacksResult().withStacks(stackComplete)
+      val mockedClient       = mock[AmazonCloudFormation]
+      val deleteCompleteReq  = new DescribeStacksRequest().withStackName("some-stack-id")
+      val deleteCompleteReq2 = new DescribeStacksRequest().withStackName("delete-stack-id")
+      val stackComplete      = new Stack().withStackStatus(StackStatus.DELETE_COMPLETE)
+      val stackPending       = new Stack().withStackStatus(StackStatus.DELETE_IN_PROGRESS)
+      val stackPendingResp   = new DescribeStacksResult().withStacks(stackPending)
+      val stackCompleteResp  = new DescribeStacksResult().withStacks(stackComplete)
 
       Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(deleteCompleteReq)
+      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(deleteCompleteReq2)
 
       val props = Props(new StackDeleteCompleteMonitor(null, "some-stack-id", "chadash-newstack-somename-v1-0") {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+
+        override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, actors.workflow.tasks.StackDeleteCompleteMonitor.Tick)
+      })
+
+      val deleteStack = Props(new StackDeleteCompleteMonitor(null, "delete-stack-id", "chadash-updatestack-somename-v1-2") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
         override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
@@ -385,11 +434,13 @@ object WorkflowManagerSystemTest {
     }
 
     object DeleteStack {
-      val mockedClient       = mock[AmazonCloudFormation]
-      val successReq         = new DeleteStackRequest().withStackName("chadash-updatestack-somename-v1-0")
+      val mockedClient   = mock[AmazonCloudFormation]
+      val successReq     = new DeleteStackRequest().withStackName("chadash-updatestack-somename-v1-0")
+      val deleteStackReq = new DeleteStackRequest().withStackName("chadash-updatestack-somename-v1-2")
 
       Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(org.mockito.Matchers.anyObject())
       Mockito.doNothing().when(mockedClient).deleteStack(successReq)
+      Mockito.doNothing().when(mockedClient).deleteStack(deleteStackReq)
 
       val props = Props(new DeleteStack(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
