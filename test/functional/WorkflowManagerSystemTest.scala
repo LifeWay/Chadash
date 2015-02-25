@@ -58,17 +58,39 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
   it should "complete a upgrade stack workflow when the transition is valid" in {
     val sendingProbe = TestProbe()
     val loggingProbe = TestProbe()
-    val tmpLoggingActor = system.actorOf(Props(new Actor with ActorLogging {
-      override def receive: Receive = {
-        case msg: Any => log.debug(msg.toString)
-      }
-    }))
-    val workflowProps = Props(new WorkflowManager(tmpLoggingActor, UpdateStackActorFactory))
+  
+    val workflowProps = Props(new WorkflowManager(loggingProbe.ref, UpdateStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
     sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-v1-1", "1.1", "test-ami")))
     sendingProbe.expectMsg(WorkflowStarted)
-
+    loggingProbe.expectMsg(WatchThisWorkflow)
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("One running stack found")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("ASG found, Requesting to suspend scaling activities")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("alarm and scheduled based autoscaling has been frozen for deployment")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New stack has been created")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Waiting for new stack to finish launching")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New stack has reached CREATE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Freezing alarm and scheduled based autoscaling on the new ASG")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New ASG Frozen, Querying old stack size")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Old ASG desired instances: 2, setting new ASG to 2 desired instances")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("1 unhealthy instances still exist on ELB: updatestack-somename-elb")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("All instances are reporting healthy on ELB: updatestack-somename-elb")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New ASG up and reporting healthy in the ELB(s)")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("The next version of the stack has been successfully deployed.")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Deleting old stack:")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Old stack has been requested to be deleted. Monitoring delete progress")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Old stack has reached DELETE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New ASG scaling activities have been resumed:")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("The old stack has been deleted and the new stack's ASG has been unfrozen.")
     sendingProbe.expectMsg(WorkflowCompleted)
   }
 
