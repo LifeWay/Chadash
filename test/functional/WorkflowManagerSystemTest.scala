@@ -58,7 +58,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
   it should "complete a upgrade stack workflow when the transition is valid" in {
     val sendingProbe = TestProbe()
     val loggingProbe = TestProbe()
-  
+
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, UpdateStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
@@ -94,9 +94,9 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     sendingProbe.expectMsg(WorkflowCompleted)
   }
 
-  //  it should "complete a delete workflow when the transition is valid" in {
-  //    fail()
-  //  }
+//    it should "complete a delete workflow when the transition is valid" in {
+//      fail()
+//    }
   //
   //  it should "restart flawlessly if AWS has connection issues" in {
   //    fail()
@@ -122,7 +122,14 @@ object WorkflowManagerSystemTest {
         case actors.workflow.tasks.ELBHealthyInstanceChecker => context.actorOf(PropsAndMocks.ELBHealthyInstanceChecker.props, name)
         case actors.workflow.tasks.StackDeleteCompleteMonitor => context.actorOf(PropsAndMocks.StackDeleteCompleteMonitor.props, name)
         case actors.workflow.tasks.UnfreezeASG => context.actorOf(PropsAndMocks.UnfreezeASG.props, name)
-        case _ => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.tasks.DeleteStack => context.actorOf(PropsAndMocks.DeleteStack.props, name)
+        case actors.workflow.steps.HealthyInstanceSupervisor => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.steps.DeleteStackSupervisor => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.steps.LoadStackSupervisor => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.steps.TearDownSupervisor => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.steps.ValidateAndFreezeSupervisor => ActorFactory(ref, context, name, args: _*)
+        case actors.workflow.steps.NewStackSupervisor => ActorFactory(ref, context, name, args: _*)
+        //case _ => ActorFactory(ref, context, name, args: _*)
       }
     }
   }
@@ -374,6 +381,20 @@ object WorkflowManagerSystemTest {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
         override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+      })
+    }
+
+    object DeleteStack {
+      val mockedClient       = mock[AmazonCloudFormation]
+      val successReq         = new DeleteStackRequest().withStackName("chadash-updatestack-somename-v1-0")
+
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(org.mockito.Matchers.anyObject())
+      Mockito.doNothing().when(mockedClient).deleteStack(successReq)
+
+      val props = Props(new DeleteStack(null) {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
       })
     }
   }
