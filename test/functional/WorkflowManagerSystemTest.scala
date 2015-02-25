@@ -98,15 +98,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val sendingProbe = TestProbe()
     val loggingProbe = TestProbe()
 
-    val actor = system.actorOf(Props(new Actor with ActorLogging {
-      def receive = {
-        case a: Any =>
-          loggingProbe.ref forward a
-          log.debug(a.toString)
-      }
-    }))
-
-    val workflowProps = Props(new WorkflowManager(actor, DeleteStackActorFactory))
+    val workflowProps = Props(new WorkflowManager(loggingProbe.ref, DeleteStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
     sendingProbe.send(workflowProxy, StartDeleteWorkflow("chadash-updatestack-somename-v1-2"))
@@ -122,14 +114,6 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Delete complete")
     sendingProbe.expectMsg(WorkflowCompleted)
   }
-  //
-  //  it should "restart flawlessly if AWS has connection issues" in {
-  //    fail()
-  //  }
-  //
-  //  it should "report a deploy failed if AWS returns an exception" in {
-  //    fail()
-  //  }
 }
 
 
