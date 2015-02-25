@@ -1,7 +1,6 @@
 package functional
 
 import java.io.ByteArrayInputStream
-import java.util.UUID
 
 import actors.DeploymentSupervisor
 import actors.WorkflowLog.{LogMessage, WatchThisWorkflow}
@@ -16,6 +15,8 @@ import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{Tag, _}
+import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing
+import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, DescribeInstanceHealthResult, Instance, InstanceState}
 import com.amazonaws.services.s3.AmazonS3
 import com.amazonaws.services.s3.model.S3Object
 import org.mockito.Mockito
@@ -68,8 +69,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-v1-1", "1.1", "test-ami")))
     sendingProbe.expectMsg(WorkflowStarted)
 
-    //sendingProbe.expectMsg(WorkflowCompleted)
-    fail()
+    sendingProbe.expectMsg(WorkflowCompleted)
   }
 
   //  it should "complete a delete workflow when the transition is valid" in {
@@ -90,13 +90,16 @@ object WorkflowManagerSystemTest {
   object TestActorFactory extends ActorFactory {
     def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
       ref match {
-        case actors.workflow.tasks.StackLoader => context.actorOf(PropsAndMocks.StackLoader.props, "test-stack-loader")
-        case actors.workflow.tasks.StackCreator => context.actorOf(PropsAndMocks.StackCreator.props, "test-stack-creator")
-        case actors.workflow.tasks.StackList => context.actorOf(PropsAndMocks.StackList.props, "test-stack-list")
-        case actors.workflow.tasks.StackInfo => context.actorOf(PropsAndMocks.StackInfo.props, "test-stack-info")
-        case actors.workflow.tasks.FreezeASG => context.actorOf(PropsAndMocks.FreezeASG.props, "test-freeze-asg")
-        case actors.workflow.tasks.ASGSize => context.actorOf(PropsAndMocks.ASGSize.props, "test-asg-size" + UUID.randomUUID().toString)
-        case actors.workflow.tasks.ASGInfo => context.actorOf(PropsAndMocks.ASGInfo.props, "test-asg-info")
+        case actors.workflow.tasks.StackLoader => context.actorOf(PropsAndMocks.StackLoader.props, name)
+        case actors.workflow.tasks.StackCreator => context.actorOf(PropsAndMocks.StackCreator.props, name)
+        case actors.workflow.tasks.StackList => context.actorOf(PropsAndMocks.StackList.props, name)
+        case actors.workflow.tasks.StackInfo => context.actorOf(PropsAndMocks.StackInfo.props, name)
+        case actors.workflow.tasks.FreezeASG => context.actorOf(PropsAndMocks.FreezeASG.props, name)
+        case actors.workflow.tasks.ASGSize => context.actorOf(PropsAndMocks.ASGSize.props, name)
+        case actors.workflow.tasks.ASGInfo => context.actorOf(PropsAndMocks.ASGInfo.props, name)
+        case actors.workflow.tasks.ELBHealthyInstanceChecker => context.actorOf(PropsAndMocks.ELBHealthyInstanceChecker.props, name)
+        case actors.workflow.tasks.StackDeleteCompleteMonitor => context.actorOf(PropsAndMocks.StackDeleteCompleteMonitor.props, name)
+        case actors.workflow.tasks.UnfreezeASG => context.actorOf(PropsAndMocks.UnfreezeASG.props, name)
         case _ => ActorFactory(ref, context, name, args: _*)
       }
     }
@@ -221,7 +224,7 @@ object WorkflowManagerSystemTest {
 
     object StackInfo {
       val mockedClient     = mock[AmazonCloudFormation]
-      val asgSuccessReq    = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-v1-0")
+      val successReq       = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-v1-0")
       val asgOutput        = new Output().withOutputKey("ChadashASG").withOutputValue("chadash-updatestack-somename-v1-0-asg23562342")
       val asgStack         = new Stack().withOutputs(asgOutput)
       val asgSuccessResult = new DescribeStacksResult().withStacks(asgStack)
@@ -231,7 +234,11 @@ object WorkflowManagerSystemTest {
       val asgUpdateStack  = new Stack().withOutputs(asgUpdateOutput)
       val asgUpdateResult = new DescribeStacksResult().withStacks(asgUpdateStack)
 
-      Mockito.doReturn(asgSuccessResult).when(mockedClient).describeStacks(asgSuccessReq)
+      val idStack         = new Stack().withStackId("some-stack-id")
+      val idSuccessResult = new DescribeStacksResult().withStacks(idStack)
+
+
+      Mockito.doReturn(asgSuccessResult).doReturn(idSuccessResult).when(mockedClient).describeStacks(successReq)
       Mockito.doReturn(asgUpdateResult).when(mockedClient).describeStacks(asgUpdateReq)
 
 
@@ -281,15 +288,67 @@ object WorkflowManagerSystemTest {
       val mockedClient       = mock[AmazonAutoScaling]
       val describeASGRequest = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-v1-1-asg07907234")
       val instances          = Seq(
-        new Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-1"),
-        new Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-2")
+        new com.amazonaws.services.autoscaling.model.Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-1"),
+        new com.amazonaws.services.autoscaling.model.Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-2")
       )
-      val asg                = new AutoScalingGroup().withLoadBalancerNames("test-elb-name").withInstances(instances: _*)
+      val asg                = new AutoScalingGroup().withLoadBalancerNames("updatestack-somename-elb").withInstances(instances: _*)
       val describeASGResult  = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
 
       Mockito.when(mockedClient.describeAutoScalingGroups(describeASGRequest)).thenReturn(describeASGResult)
 
       val props = Props(new ASGInfo(null) {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+      })
+    }
+
+    object ELBHealthyInstanceChecker {
+      val mockedClient = mock[AmazonElasticLoadBalancing]
+
+      val instances                = Seq(new Instance("test-instance-id-1"), new Instance("test-instance-id-2"))
+      val notHealthyInstanceStates = Seq(new InstanceState().withState("InService"), new InstanceState().withState("OutOfService"))
+      val healthyStates            = Seq(new InstanceState().withState("InService"), new InstanceState().withState("InService"))
+      val successReq               = new DescribeInstanceHealthRequest().withLoadBalancerName("updatestack-somename-elb").withInstances(instances: _*)
+      val successResultAllHealthy  = new DescribeInstanceHealthResult().withInstanceStates(healthyStates: _*)
+      val successResultNotHealthy  = new DescribeInstanceHealthResult().withInstanceStates(notHealthyInstanceStates: _*)
+
+      Mockito.when(mockedClient.describeInstanceHealth(successReq)).thenReturn(successResultNotHealthy).thenReturn(successResultAllHealthy)
+
+      val props = Props(new ELBHealthyInstanceChecker(null) {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def elasticLoadBalancingClient(credentials: AWSCredentials) = mockedClient
+      })
+    }
+
+    object StackDeleteCompleteMonitor {
+      val mockedClient      = mock[AmazonCloudFormation]
+      val deleteCompleteReq = new DescribeStacksRequest().withStackName("some-stack-id")
+      val stackComplete     = new Stack().withStackStatus(StackStatus.DELETE_COMPLETE)
+      val stackPending      = new Stack().withStackStatus(StackStatus.DELETE_IN_PROGRESS)
+      val stackPendingResp  = new DescribeStacksResult().withStacks(stackPending)
+      val stackCompleteResp = new DescribeStacksResult().withStacks(stackComplete)
+
+      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(deleteCompleteReq)
+
+      val props = Props(new StackDeleteCompleteMonitor(null, "some-stack-id", "chadash-newstack-somename-v1-0") {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+
+        override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, actors.workflow.tasks.StackDeleteCompleteMonitor.Tick)
+      })
+    }
+
+    object UnfreezeASG {
+      val mockedClient = mock[AmazonAutoScaling]
+      val successReq   = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-v1-1-asg07907234")
+
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).resumeProcesses(org.mockito.Matchers.anyObject())
+      Mockito.doNothing().when(mockedClient).resumeProcesses(successReq)
+
+      val props = Props(new UnfreezeASG(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
         override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
