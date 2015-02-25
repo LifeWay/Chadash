@@ -1,5 +1,7 @@
 package actors.workflow.steps
 
+import java.util.concurrent.TimeUnit
+
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.HealthyInstanceSupervisor.{HealthyInstanceData, HealthyInstanceMonitorStates}
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
@@ -9,6 +11,8 @@ import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.FSM.Failure
 import akka.actor._
 import com.amazonaws.auth.AWSCredentials
+import com.typesafe.config.ConfigFactory
+import utils.ConfigHelpers._
 import utils.{ActorFactory, PropFactory}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -19,6 +23,10 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
                                                                     with ActorLogging with AWSSupervisorStrategy {
 
   import actors.workflow.steps.HealthyInstanceSupervisor._
+
+  val config                           = ConfigFactory.load()
+  val configDelay                      = for (x <- config.getOptLong("chadash.intervals.healthcheckmilliseconds")) yield FiniteDuration(x, TimeUnit.MILLISECONDS)
+  val healthCheckDelay: FiniteDuration = configDelay.getOrElse(10.seconds)
 
   startWith(AwaitingCheckHealthRequest, Uninitialized)
 
@@ -48,7 +56,7 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
 
         case _ =>
           context.parent ! LogMessage("Waiting on ASG for all instances to be In Service")
-          context.system.scheduler.scheduleOnce(10.seconds, self, CheckHealth)
+          context.system.scheduler.scheduleOnce(healthCheckDelay, self, CheckHealth)
           goto(AwaitingCheckHealthRequest) using Uninitialized
       }
   }
@@ -58,7 +66,7 @@ class HealthyInstanceSupervisor(credentials: AWSCredentials, expectedInstances: 
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"${msg.unhealthyInstances} unhealthy instances still exist on ELB: ${msg.elbName}")
-      context.system.scheduler.scheduleOnce(10.seconds, self, CheckHealth)
+      context.system.scheduler.scheduleOnce(healthCheckDelay, self, CheckHealth)
       goto(AwaitingCheckHealthRequest) using Uninitialized
 
     case Event(msg: ELBInstanceListAllHealthy, _) =>
