@@ -8,7 +8,7 @@ import actors.workflow.WorkflowManager.{WorkflowData, WorkflowState}
 import actors.workflow.steps.DeleteStackSupervisor.{DeleteExistingStack, DeleteExistingStackFinished}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackCommand, LoadStackResponse}
 import actors.workflow.steps.NewStackSupervisor._
-import actors.workflow.steps.RollBackStackSupervisor.{RollBackDeleteStackAndUnfreeze, RollBackCompleted}
+import actors.workflow.steps.RollBackStackSupervisor.{RollBackCompleted, RollBackDeleteStackAndUnfreeze}
 import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinished}
 import actors.workflow.steps.ValidateAndFreezeSupervisor._
 import actors.workflow.steps._
@@ -35,21 +35,6 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
     logActor ! WatchThisWorkflow
     //TODO: make this timeout configurable. Perhaps passed in as an optional param on the deploy?
     cancellable = Some(context.system.scheduler.scheduleOnce(30.minutes, self, WorkflowTimeout))
-  }
-
-  val fullTearDownErrorHandler: StateFunction = {
-    case Event(msg: StepFailed, state: DeployDataWithCredsWithSteps) =>
-      context.unwatch(sender())
-      logActor ! LogMessage(s"The following step has failed: ${context.sender()} for the following reason: ${msg.reason}")
-      tearDownFailHandler(state)
-
-    case Event(WorkflowTimeout, state: DeployDataWithCredsWithSteps) =>
-      logActor ! LogMessage(s"The workflow has taken longer than allowed to transition. Stopping the transition and throwing up.")
-      tearDownFailHandler(state)
-
-    case Event(Terminated(actorRef), state: DeployDataWithCredsWithSteps) =>
-      context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
-      tearDownFailHandler(state)
   }
 
   startWith(AwaitingWorkflowStartCommand, Uninitialized)
@@ -135,44 +120,58 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   }
 
   when(AwaitingStackLaunched) {
-    val normalState: StateFunction = {
-      case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_, _, _)) =>
-        context.unwatch(sender())
-        logActor ! LogMessage(s"The first version of this stack has been successfully deployed. Stack Name: $newStackName")
-        logActor ! WorkflowLog.WorkflowCompleted
-        context.parent ! WorkflowCompleted
-        stop()
+    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_, _, _)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage(s"The first version of this stack has been successfully deployed. Stack Name: $newStackName")
+      logActor ! WorkflowLog.WorkflowCompleted
+      context.parent ! WorkflowCompleted
+      stop()
 
-      case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
-        context.unwatch(sender())
-        logActor ! LogMessage("The next version of the stack has been successfully deployed.")
-        val tearDownSupervisor = actorFactory(TearDownSupervisor, context, "tearDownSupervisor", creds, actorFactory)
-        context.watch(tearDownSupervisor)
-        stepData.get("oldStackName") match {
-          case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, newAsgName)
-          case None => throw new Exception("No old stack name found when attempting to tear down old stack")
-        }
-        goto(AwaitingOldStackTearDown) using DeployDataWithCredsWithSteps(data, creds, stepData)
-    }
-    normalState.orElse(fullTearDownErrorHandler)
+    case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("The next version of the stack has been successfully deployed.")
+      val tearDownSupervisor = actorFactory(TearDownSupervisor, context, "tearDownSupervisor", creds, actorFactory)
+      context.watch(tearDownSupervisor)
+      stepData.get("oldStackName") match {
+        case Some(oldStackName) => tearDownSupervisor ! TearDownCommand(oldStackName, newAsgName)
+        case None => throw new Exception("No old stack name found when attempting to tear down old stack")
+      }
+      goto(AwaitingOldStackTearDown) using DeployDataWithCredsWithSteps(data, creds, stepData)
+
+    case Event(msg: StepFailed, state: DeployDataWithCredsWithSteps) =>
+      context.unwatch(sender())
+      logActor ! LogMessage(s"The following step has failed: ${context.sender()} for the following reason: ${msg.reason}")
+      tearDownFailHandler(state)
+
+    case Event(WorkflowTimeout, state: DeployDataWithCredsWithSteps) =>
+      logActor ! LogMessage(s"The workflow has taken longer than allowed to transition. Stopping the transition and throwing up.")
+      tearDownFailHandler(state)
+
+    case Event(Terminated(actorRef), state: DeployDataWithCredsWithSteps) =>
+      context.parent ! LogMessage(s"Child of ${this.getClass.getSimpleName} has died unexpectedly. Child Actor: ${actorRef.path.name}")
+      tearDownFailHandler(state)
   }
 
   when(AwaitingOldStackTearDown) {
-    val normalState: StateFunction = {
-      case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _)) =>
-        context.unwatch(sender())
-        logActor ! LogMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
-        logActor ! WorkflowLog.WorkflowCompleted
-        context.parent ! WorkflowCompleted
-        stop()
-    }
-    normalState.orElse(fullTearDownErrorHandler)
+    case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
+      logActor ! WorkflowLog.WorkflowCompleted
+      context.parent ! WorkflowCompleted
+      stop()
+    case Event(WorkflowTimeout, state: DeployDataWithCredsWithSteps) =>
+      logActor ! LogMessage(s"The workflow has taken longer than allowed to transition, but we are in the final state right now, just waiting on AWS actions. Ignoring.")
+      stay()
   }
 
   when(AwaitingRollBackCompleteResponse) {
     case Event(RollBackCompleted, _) =>
       context.unwatch(sender())
       logActor ! LogMessage("The rollback has completed")
+      failed()
+    case Event(DeleteExistingStackFinished, _) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("The stack has been deleted")
       failed()
   }
 
@@ -218,8 +217,11 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
         rollBackSupervisor ! RollBackDeleteStackAndUnfreeze(state.deploy.stackName, oldAsg)
         goto(AwaitingRollBackCompleteResponse)
       case None =>
-        logActor ! "Attempting rollback, but determined there was nothing to do. Deploy failed."
-        failed()
+        logActor ! "Halting first deployment by killing the stack"
+        val deleteStackSupervisor = actorFactory(DeleteStackSupervisor, context, "deleteStackSupervisor", state.creds, actorFactory)
+        context.watch(deleteStackSupervisor)
+        deleteStackSupervisor ! DeleteExistingStack(state.deploy.stackName)
+        goto(AwaitingRollBackCompleteResponse)
     }
   }
 
