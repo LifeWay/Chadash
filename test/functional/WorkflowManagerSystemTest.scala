@@ -40,7 +40,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, NewStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("newstack/somename", "chadash-newstack-somename-v1-0", "1.0", "test-ami")))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("newstack/somename", "chadash-newstack-somename-v1-0", "1.0", "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
@@ -62,7 +62,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, UpdateStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-v1-1", "1.1", "test-ami")))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-v1-1", "1.1", "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")

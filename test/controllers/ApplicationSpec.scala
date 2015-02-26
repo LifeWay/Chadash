@@ -73,8 +73,8 @@ class ApplicationSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   object TestDeploymentActor extends DeploymentActor {
     val actor = system.actorOf(Props(new Actor {
       def receive = {
-        case DeploymentSupervisor.DeployRequest("in-progress", _, _) => sender ! WorkflowInProgress
-        case DeploymentSupervisor.DeployRequest("workflow-started", _, _) => sender ! WorkflowStarted
+        case DeploymentSupervisor.DeployRequest("in-progress", _, _, _) => sender ! WorkflowInProgress
+        case DeploymentSupervisor.DeployRequest("workflow-started", _, _, _) => sender ! WorkflowStarted
         case DeploymentSupervisor.DeleteStack("delete-success", _) => sender ! WorkflowStarted
         case DeploymentSupervisor.DeleteStack("delete-in-progress", _) => sender ! WorkflowInProgress
       }
