@@ -3,7 +3,7 @@
 # ~~~~
 
 GET         /                                 @controllers.Application.index
-POST        /api/deploy/*stackPath            @controllers.Application.deploy(stackPath:String)
+POST        /api/deploy/*stackPath            @controllers.Application.deploy(stackPath:String, timeoutmin: Int?=30)
 POST        /api/delete/*stackPath            @controllers.Application.deleteStack(stackPath:String)
 GET         /api/deploy-log/*stackPath        @controllers.Application.statusSocket(stackPath:String, version: String)
 

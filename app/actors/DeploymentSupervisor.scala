@@ -85,8 +85,8 @@ class DeploymentSupervisor(actorFactory: ActorFactory) extends Actor with ActorL
 
 object DeploymentSupervisor {
 
-  case class DeployRequest(stackPath: String, appVersion: String, amiId: String)
-  case class Deploy(stackPath: String, stackName: String, appVersion: String, amiId: String)
+  case class DeployRequest(stackPath: String, appVersion: String, amiId: String, timeout: Int)
+  case class Deploy(stackPath: String, stackName: String, appVersion: String, amiId: String, timeout: Int)
   case class DeployStatusQuery(stackPath: String)
   case class DeployWorkflow(workflowActor: ActorRef)
   case class DeleteStack(stackPath: String, appVersion: String)
@@ -100,7 +100,7 @@ object DeploymentSupervisor {
 
   def stackNameSansVersionBuilder(stackPath: String): String = awsStackNamePattern.replaceAllIn(s"chadash-$stackPath", "-")
 
-  def deployBuilder(deployRequest: DeployRequest): Deploy = Deploy(deployRequest.stackPath, stackNameBuilder(deployRequest.stackPath, deployRequest.appVersion), deployRequest.appVersion, deployRequest.amiId)
+  def deployBuilder(deployRequest: DeployRequest): Deploy = Deploy(deployRequest.stackPath, stackNameBuilder(deployRequest.stackPath, deployRequest.appVersion), deployRequest.appVersion, deployRequest.amiId, deployRequest.timeout)
 
   def logNameBuilder(stackPath: String, version: String): String = s"logs-${stackNameBuilder(stackPath, version)}"
 }

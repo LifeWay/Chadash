@@ -33,14 +33,13 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   override def preStart(): Unit = {
     super.preStart()
     logActor ! WatchThisWorkflow
-    //TODO: make this timeout configurable. Perhaps passed in as an optional param on the deploy?
-    cancellable = Some(context.system.scheduler.scheduleOnce(30.minutes, self, WorkflowTimeout))
   }
 
   startWith(AwaitingWorkflowStartCommand, Uninitialized)
 
   when(AwaitingWorkflowStartCommand) {
     case Event(StartDeployWorkflow(data), Uninitialized) =>
+      cancellable = Some(context.system.scheduler.scheduleOnce(data.timeout.minutes, self, WorkflowTimeout))
       sender() ! WorkflowStarted
       context.watch(ChadashSystem.credentials)
       ChadashSystem.credentials ! AmazonCredentials.RequestCredentials

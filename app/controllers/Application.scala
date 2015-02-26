@@ -23,7 +23,7 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
   val jvmVersion = java.lang.System.getProperty("java.version")
   val jvmVendor  = java.lang.System.getProperty("java.vendor")
 
-  def deploy(stackPath: String) = Action.async(BodyParsers.parse.json) { implicit request =>
+  def deploy(stackPath: String, timeout: Int) = Action.async(BodyParsers.parse.json) { implicit request =>
     Authentication.checkAuth(stackPath) { userId =>
       Logger.info(s"User: $userId is requesting to deploy stack: $stackPath.")
       val res = request.body.validate[Deployment]
@@ -32,7 +32,7 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
         deployment => {
           implicit val to = Timeout(Duration(2, "seconds"))
           val f = for (
-            res <- deploymentActor.actor ? DeploymentSupervisor.DeployRequest(stackPath, deployment.version, deployment.amiId)
+            res <- deploymentActor.actor ? DeploymentSupervisor.DeployRequest(stackPath, deployment.version, deployment.amiId, timeout)
           ) yield res
 
           f.map {
