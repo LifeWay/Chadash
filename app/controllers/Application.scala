@@ -2,13 +2,16 @@ package controllers
 
 import actors.DeploymentSupervisor.{NoWorkflow, WorkflowInProgress}
 import actors.WorkflowLog.SubscribeToMe
+import actors.WorkflowStatusEventStream.{StartFeed, FeedEnumerator}
 import actors._
+import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import com.google.inject.Inject
 import models.{DeleteStack, Deployment}
 import play.api.Logger
 import play.api.Play.current
+import play.api.libs.EventSource
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
 import play.api.libs.json.{JsError, _}
 import play.api.mvc._
@@ -76,6 +79,24 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
         case NoWorkflow => Left(NotFound("workflow not found"))
         case x: SubscribeToMe => Right(out => WorkflowStatusWebSocket.props(out, x.ref))
       }
+    }
+  }
+
+  def statusEvents(appName: String, version: String) = Action.async {
+    implicit val to = Timeout(2.seconds)
+    //It's very important that each request gets its own WorkflowStatusEventStream actor - no sharing the enumerator!
+    val f = for {
+      logSubscribeToMe <- (deploymentActor.actor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)).mapTo[SubscribeToMe]
+      eventStreamRef <- Future[ActorRef](ChadashSystem.system.actorOf(WorkflowStatusEventStream.props(logSubscribeToMe.ref)))
+      eventStreamEnumerator <- (eventStreamRef ? WorkflowStatusEventStream.FeedRequest).mapTo[FeedEnumerator]
+    } yield (eventStreamRef, eventStreamEnumerator)
+
+    f.map { x =>
+      val (eventStreamRef, enumerator) = x
+      eventStreamRef ! StartFeed
+      Ok.feed(enumerator.enumerator &> EventSource()).as(EVENT_STREAM)
+    }.recover {
+      case _ => NotFound("workflow not found")
     }
   }
 

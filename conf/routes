@@ -5,7 +5,8 @@
 GET         /                                 @controllers.Application.index
 POST        /api/deploy/*stackPath            @controllers.Application.deploy(stackPath:String, timeoutmin: Int?=30)
 POST        /api/delete/*stackPath            @controllers.Application.deleteStack(stackPath:String)
-GET         /api/deploy-log/*stackPath        @controllers.Application.statusSocket(stackPath:String, version: String)
+GET         /api/ws-log/*stackPath            @controllers.Application.statusSocket(stackPath:String, version: String)
+GET         /api/sse-log/*stackPath           @controllers.Application.statusEvents(stackPath:String, version: String)
 
 GET         /system-info/version              @controllers.Application.buildInfo
 GET         /system-info/healthcheck          @controllers.Application.healthCheck
