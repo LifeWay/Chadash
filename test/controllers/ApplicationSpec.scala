@@ -59,7 +59,30 @@ class ApplicationSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
     val f = WS.url(testURL).post(Json.obj("version" -> "1.01"))
     val response = Await.result(f, 5.seconds)
     response.json shouldBe Json.obj("status" -> 401, "api-message" -> "Not Authorized").asInstanceOf[JsValue]
+  }
 
+  it should "check for wildcard auth that starts with a path" in {
+    val testURL = s"http://localhost:$port/api/delete/rootstack/somestack"
+    val f = WS.url(testURL).withAuth("wildcardBeginningPathCheck", "2345", WSAuthScheme.BASIC).post(Json.obj("version" -> "1.01"))
+    val response = Await.result(f, 5.seconds)
+    response.status shouldBe 200
+    response.body shouldBe "WorkflowStarted"
+  }
+
+  it should "check for wildcard auth starts and ends with a path" in {
+    val testURL = s"http://localhost:$port/api/delete/somestackpath/someserviceawsd"
+    val f = WS.url(testURL).withAuth("wildcardMiddlePathCheck", "1234", WSAuthScheme.BASIC).post(Json.obj("version" -> "1.01"))
+    val response = Await.result(f, 5.seconds)
+    response.status shouldBe 200
+    response.body shouldBe "WorkflowStarted"
+  }
+
+  it should "check for wildcard auth starts with a path and contains a phrase" in {
+    val testURL = s"http://localhost:$port/api/delete/multipath/someservicemongoawss"
+    val f = WS.url(testURL).withAuth("wilcardMultiPathCheck", "3456", WSAuthScheme.BASIC).post(Json.obj("version" -> "1.01"))
+    val response = Await.result(f, 5.seconds)
+    response.status shouldBe 200
+    response.body shouldBe "WorkflowStarted"
   }
 
   object TestGlobal extends AppGlobalSettings {
@@ -77,6 +100,9 @@ class ApplicationSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
         case DeploymentSupervisor.DeployRequest("workflow-started", _, _, _) => sender ! WorkflowStarted
         case DeploymentSupervisor.DeleteStack("delete-success", _) => sender ! WorkflowStarted
         case DeploymentSupervisor.DeleteStack("delete-in-progress", _) => sender ! WorkflowInProgress
+        case DeploymentSupervisor.DeleteStack("rootstack/somestack", _) => sender ! WorkflowStarted
+        case DeploymentSupervisor.DeleteStack("somestackpath/someserviceawsd", _) => sender ! WorkflowStarted
+        case DeploymentSupervisor.DeleteStack("multipath/someservicemongoawss", _) => sender ! WorkflowStarted
       }
     }))
   }

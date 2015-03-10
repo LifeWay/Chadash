@@ -7,6 +7,7 @@ import play.api.mvc.Results._
 import play.api.mvc._
 import play.api.{Configuration, Play}
 
+import scala.collection.JavaConverters._
 import scala.concurrent.Future
 
 object Authentication {
@@ -28,7 +29,7 @@ object Authentication {
 
   def stackAuth(userPerms: Configuration, stackName: String): Boolean = {
     userPerms.getStringList("stacks") match {
-      case Some(list) => list.contains("*") || list.contains(stackName)
+      case Some(list) => list.contains(stackName) || stackCheck(list.asScala.toList, stackName)
       case None => false
     }
   }
@@ -37,6 +38,17 @@ object Authentication {
     userPerms.getString("password") match {
       case Some(configPw) => configPw == pw
       case None => false
+    }
+  }
+
+  def stackCheck(strings: List[String], stackName: String): Boolean = {
+    val wildcardSeq = strings.par.collect { case s: String if s.contains("*") => s}
+    wildcardSeq.exists { x =>
+      val testRegex = x.replaceAll("\\*", ".*").r
+      stackName match {
+        case testRegex(_*) => true
+        case _ => false
+      }
     }
   }
 
