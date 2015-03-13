@@ -16,6 +16,7 @@ import play.api.libs.concurrent.Execution.Implicits.defaultContext
 import play.api.libs.json.{JsError, _}
 import play.api.mvc._
 import utils.Authentication
+import com.lifeway.chadash.appversion.BuildInfo
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
