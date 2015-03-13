@@ -1,4 +1,4 @@
-package actors
+package actors.workflow
 
 import akka.actor.{Actor, ActorLogging}
 import com.amazonaws.auth._
@@ -15,7 +15,7 @@ import scala.concurrent.duration._
  */
 class AmazonCredentials extends Actor with ActorLogging {
 
-  import actors.AmazonCredentials._
+  import actors.workflow.AmazonCredentials._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 

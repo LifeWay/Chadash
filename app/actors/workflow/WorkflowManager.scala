@@ -1,6 +1,6 @@
 package actors.workflow
 
-import actors.AmazonCredentials.CurrentCredentials
+import actors.workflow.AmazonCredentials.CurrentCredentials
 import actors.DeploymentSupervisor.Deploy
 import actors.WorkflowLog._
 import actors._
