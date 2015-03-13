@@ -9,6 +9,7 @@ import org.apache.commons.codec.binary.Base64.decodeBase64
 import play.api.libs.json.{JsNumber, JsObject, JsString}
 import play.api.mvc.Results._
 import play.api.mvc._
+import utils.ConfigHelpers.RichConfig
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
@@ -32,8 +33,8 @@ object Authentication {
     implicit val to = Timeout(2.seconds)
     val optionalAccess = for {
       config <- (ChadashSystem.userCredentials ? UserCredentialsLoader.GetConfig).mapTo[UserConfig]
-      userConfig <- Future.successful(config.config.getConfig(username))
-    } yield userAuth(userConfig, username, pw) && stackAuth(userConfig, stack)
+      userConfig <- Future.successful(config.config.getOptConfig(username))
+    } yield if(userConfig.isDefined) userAuth(userConfig.get, username, pw) && stackAuth(userConfig.get, stack) else false
 
     optionalAccess.flatMap { hasAccess =>
       if (hasAccess) callback(username) else Future.successful(notAuthResponse)
