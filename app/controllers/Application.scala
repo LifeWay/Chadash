@@ -2,7 +2,7 @@ package controllers
 
 import actors.DeploymentSupervisor.{NoWorkflow, WorkflowInProgress}
 import actors.WorkflowLog.SubscribeToMe
-import actors.WorkflowStatusEventStream.{StartFeed, FeedEnumerator}
+import actors.WorkflowStatusEventStream.{FeedEnumerator, StartFeed}
 import actors._
 import akka.actor.ActorRef
 import akka.pattern.ask
@@ -19,12 +19,8 @@ import utils.Authentication
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import com.lifeway.chadash.appversion.BuildInfo
 
 class Application @Inject()(deploymentActor: DeploymentActor) extends Controller {
-
-  val jvmVersion = java.lang.System.getProperty("java.version")
-  val jvmVendor  = java.lang.System.getProperty("java.vendor")
 
   def deploy(stackPath: String, timeout: Int) = Action.async(BodyParsers.parse.json) { implicit request =>
     Authentication.checkAuth(stackPath) { userId =>
@@ -109,6 +105,8 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
   }
 
   def buildInfo = Action {
+    import controllers.Application._
+
     Ok(
       Json.obj(
         "buildInfo" -> Json.obj(
@@ -123,4 +121,8 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
       )
     )
   }
+}
+object Application {
+  val jvmVersion = java.lang.System.getProperty("java.version")
+  val jvmVendor  = java.lang.System.getProperty("java.vendor")
 }
