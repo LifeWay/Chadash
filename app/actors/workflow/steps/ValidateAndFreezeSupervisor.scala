@@ -26,12 +26,13 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
       val stackList = actorFactory(StackList, context, "stackList", credentials)
       context.watch(stackList)
       val stackName = DeploymentSupervisor.stackNameSansVersionBuilder(msg.stackPath)
+      val stackNameWithVersion = DeploymentSupervisor.stackNameBuilder(msg.stackPath, msg.newVersion)
       stackList ! ListNonDeletedStacksStartingWithName(stackName)
-      goto(AwaitingFilteredStackResponse)
+      goto(AwaitingFilteredStackResponse) using NewStackVersion(stackNameWithVersion)
   }
 
   when(AwaitingFilteredStackResponse) {
-    case Event(msg: FilteredStacks, Uninitialized) =>
+    case Event(msg: FilteredStacks, NewStackVersion(newStackName)) =>
       context.unwatch(sender())
       context.stop(sender())
 
@@ -45,12 +46,19 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
           stop()
 
         case 1 =>
-          context.parent ! LogMessage("One running stack found, querying for the ASG name")
-          val asgFetcher = actorFactory(StackInfo, context, "getASGName", credentials)
-          context.watch(asgFetcher)
-          val stack = msg.stackList(0)
-          asgFetcher ! StackASGNameQuery(stack)
-          goto(AwaitingStackASGNameResponse) using ExistingStack(stack)
+          val stack = msg.stackList.head
+          if(stack == newStackName) {
+            context.parent ! LogMessage("Stack version already exists - nothing to deploy")
+            context.parent ! StackVersionAlreadyExists
+            stop()
+          } else {
+            context.parent ! LogMessage("One running stack found, querying for the ASG name")
+            val asgFetcher = actorFactory(StackInfo, context, "getASGName", credentials)
+            context.watch(asgFetcher)
+
+            asgFetcher ! StackASGNameQuery(stack)
+            goto(AwaitingStackASGNameResponse) using ExistingStack(stack)
+          }
       }
   }
 
@@ -102,8 +110,9 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
 object ValidateAndFreezeSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait ValidateAndFreezeMessage
-  case class ValidateAndFreezeStackCommand(stackPath: String) extends ValidateAndFreezeMessage
+  case class ValidateAndFreezeStackCommand(stackPath: String, newVersion: String) extends ValidateAndFreezeMessage
   case object NoExistingStacksExist extends ValidateAndFreezeMessage
+  case object StackVersionAlreadyExists extends ValidateAndFreezeMessage
   case class VerifiedAndStackFrozen(oldStackName: String, oldASGName: String) extends ValidateAndFreezeMessage
 
   //FSM: States
@@ -116,6 +125,7 @@ object ValidateAndFreezeSupervisor extends PropFactory {
   //FSM: Data
   sealed trait ValidateAndFreezeData
   case object Uninitialized extends ValidateAndFreezeData
+  case class NewStackVersion(newStackNameWithVersion: String) extends ValidateAndFreezeData
   case class ExistingStack(stackName: String) extends ValidateAndFreezeData
   case class ExistingStackAndASG(stackName: String, asgName: String) extends ValidateAndFreezeData
 

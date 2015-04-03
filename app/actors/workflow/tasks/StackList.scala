@@ -4,6 +4,7 @@ import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.model.ListStacksRequest
+import com.amazonaws.services.cloudformation.model.StackStatus._
 import utils.{AmazonCloudFormationService, PropFactory}
 
 import scala.collection.JavaConverters._
@@ -14,12 +15,7 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor with Am
 
   override def receive: Receive = {
     case query: ListNonDeletedStacksStartingWithName =>
-      import com.amazonaws.services.cloudformation.model.StackStatus._
 
-      //only consider stacks that are not in the set of: delete_complete, delete_failed
-      val stackStatusFilters = Seq(CREATE_IN_PROGRESS, CREATE_COMPLETE, CREATE_FAILED, ROLLBACK_IN_PROGRESS, ROLLBACK_FAILED, ROLLBACK_COMPLETE,
-        DELETE_IN_PROGRESS, UPDATE_COMPLETE_CLEANUP_IN_PROGRESS, UPDATE_IN_PROGRESS, UPDATE_COMPLETE, UPDATE_ROLLBACK_COMPLETE, UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS,
-        UPDATE_ROLLBACK_FAILED, UPDATE_ROLLBACK_IN_PROGRESS)
       val listStackRequests = new ListStacksRequest()
                               .withStackStatusFilters(stackStatusFilters.toArray: _*)
 
@@ -33,6 +29,11 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor with Am
 }
 
 object StackList extends PropFactory {
+  //only consider stacks that are not in the set of: delete_complete, delete_failed
+  val stackStatusFilters = Seq(CREATE_IN_PROGRESS, CREATE_COMPLETE, CREATE_FAILED, ROLLBACK_IN_PROGRESS, ROLLBACK_FAILED, ROLLBACK_COMPLETE,
+    DELETE_IN_PROGRESS, UPDATE_COMPLETE_CLEANUP_IN_PROGRESS, UPDATE_IN_PROGRESS, UPDATE_COMPLETE, UPDATE_ROLLBACK_COMPLETE, UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS,
+    UPDATE_ROLLBACK_FAILED, UPDATE_ROLLBACK_IN_PROGRESS)
+
   case class ListNonDeletedStacksStartingWithName(stackName: String)
   case class FilteredStacks(stackList: Seq[String])
 

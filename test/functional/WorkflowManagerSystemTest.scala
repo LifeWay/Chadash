@@ -114,6 +114,22 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Delete complete")
     sendingProbe.expectMsg(WorkflowCompleted)
   }
+
+  it should "report failure if the stack + version number already exist" in {
+    val sendingProbe = TestProbe()
+    val loggingProbe = TestProbe()
+
+    val workflowProps = Props(new WorkflowManager(loggingProbe.ref, ExistingStackActorFactory))
+    val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
+
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("existingstack/somename", "chadash-existingstack-somename-v1-0", "1.0", "test-ami", 30)))
+    sendingProbe.expectMsg(WorkflowStarted)
+    loggingProbe.expectMsg(WatchThisWorkflow)
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack version already exists")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Workflow is being stopped")
+    sendingProbe.expectMsgClass(classOf[WorkflowManager.WorkflowFailed])
+  }
 }
 
 
@@ -165,6 +181,14 @@ object WorkflowManagerSystemTest {
       }
     }
   }
+  object ExistingStackActorFactory extends ActorFactory {
+    def apply[T <: PropFactory](ref: T, context: ActorRefFactory, name: String, args: Any*): ActorRef = {
+      ref match {
+        case actors.workflow.tasks.StackList => context.actorOf(PropsAndMocks.ExistingStack.props, name)
+        case _ => TestActorFactory(ref, context, name, args: _*)
+      }
+    }
+  }
 
   object PropsAndMocks extends MockitoSugar {
 
@@ -180,8 +204,14 @@ object WorkflowManagerSystemTest {
       updateObject.setKey("chadash-stacks/updatestack/somename.json")
       updateObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
+      val existingObject = new S3Object()
+      existingObject.setBucketName("test-bucket-name")
+      existingObject.setKey("chadash-stacks/existingstack/somename.json")
+      existingObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
+
       Mockito.doReturn(s3successObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.json")
       Mockito.doReturn(updateObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.json")
+      Mockito.doReturn(existingObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.json")
 
       val props = Props(new StackLoader(null, "test-bucket-name") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -192,10 +222,8 @@ object WorkflowManagerSystemTest {
 
     object StackList {
 
-      import actors.workflow.tasks.StackListSpec._
-
       val mockedClient          = mock[AmazonCloudFormation]
-      val req                   = new ListStacksRequest().withStackStatusFilters(stackStatusFilters: _*)
+      val req                   = new ListStacksRequest().withStackStatusFilters(actors.workflow.tasks.StackList.stackStatusFilters: _*)
       val successStackSummaries = Seq(new StackSummary().withStackName("chadash-updatestack-somename-v1-0"), new StackSummary().withStackName("other-stack-name"))
       val successResp           = new ListStacksResult().withStackSummaries(successStackSummaries: _*)
 
@@ -427,6 +455,21 @@ object WorkflowManagerSystemTest {
       Mockito.doNothing().when(mockedClient).deleteStack(deleteStackReq)
 
       val props = Props(new DeleteStack(null) {
+        override def pauseTime(): FiniteDuration = 5.milliseconds
+
+        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+      })
+    }
+
+    object ExistingStack {
+      val mockedClient = mock[AmazonCloudFormation]
+      val existingReq  = new ListStacksRequest().withStackStatusFilters(actors.workflow.tasks.StackList.stackStatusFilters.toArray: _*)
+      val stackSummaries = new StackSummary().withStackName("chadash-existingstack-somename-v1-0")
+      val response = new ListStacksResult().withStackSummaries(stackSummaries)
+
+      Mockito.doReturn(response).when(mockedClient).listStacks(existingReq)
+
+      val props = Props(new actors.workflow.tasks.StackList(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
         override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient

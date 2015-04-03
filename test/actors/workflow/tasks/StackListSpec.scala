@@ -19,11 +19,9 @@ import scala.concurrent.duration._
 class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
                             with Matchers with MockitoSugar {
 
-  import actors.workflow.tasks.StackListSpec._
-
   val mockedClient          = mock[AmazonCloudFormation]
   val failMockedClient      = mock[AmazonCloudFormation]
-  val req                   = new ListStacksRequest().withStackStatusFilters(stackStatusFilters: _*)
+  val req                   = new ListStacksRequest().withStackStatusFilters(actors.workflow.tasks.StackList.stackStatusFilters: _*)
   val successStackSummaries = Seq(new StackSummary().withStackName("some-stack-id-1"), new StackSummary().withStackName("some-stack-id-2"))
   val successResp           = new ListStacksResult().withStackSummaries(successStackSummaries: _*)
 
@@ -79,9 +77,4 @@ class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
       }
     }
   }
-}
-object StackListSpec {
-  val stackStatusFilters = Seq(CREATE_IN_PROGRESS, CREATE_COMPLETE, CREATE_FAILED, ROLLBACK_IN_PROGRESS, ROLLBACK_FAILED, ROLLBACK_COMPLETE,
-    DELETE_IN_PROGRESS, UPDATE_COMPLETE_CLEANUP_IN_PROGRESS, UPDATE_IN_PROGRESS, UPDATE_COMPLETE, UPDATE_ROLLBACK_COMPLETE, UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS,
-    UPDATE_ROLLBACK_FAILED, UPDATE_ROLLBACK_IN_PROGRESS)
 }

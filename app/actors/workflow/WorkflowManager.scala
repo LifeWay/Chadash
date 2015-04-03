@@ -76,7 +76,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       val stepData: Map[String, String] = Map("stackFileContents" -> stackJson.toString())
       val validateAndFreezeSupervisor = actorFactory(ValidateAndFreezeSupervisor, context, "validateAndFreezeSupervisor", creds, actorFactory)
       context.watch(validateAndFreezeSupervisor)
-      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath)
+      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath, data.appVersion)
       goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
   }
 
@@ -116,6 +116,12 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
       goto(AwaitingStackLaunched) using DeployDataWithCredsWithSteps(data, creds, newStepData)
+
+    case Event(StackVersionAlreadyExists, DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+      context.unwatch(sender())
+      logActor ! LogMessage("Workflow is being stopped - you are trying to redeploy an existing stack version")
+      failed()
+      stop()
   }
 
   when(AwaitingStackLaunched) {
