@@ -1,5 +1,6 @@
 import play.PlayImport._
 import play.PlayScala
+import sbt.Keys._
 import sbtbuildinfo.Plugin._
 
 name := "chadash"
@@ -9,6 +10,8 @@ scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala).settings(
   javaOptions in Test += "-Dconfig.file=conf/application.test.conf"
+  //FOR DEBUGGING TESTS:
+  //,javaOptions in Test += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=9999"
 )
 
 libraryDependencies ++= Seq(
