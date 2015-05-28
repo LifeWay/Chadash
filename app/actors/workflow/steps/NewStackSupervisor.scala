@@ -85,43 +85,62 @@ class NewStackSupervisor(credentials: AWSCredentials,
   }
 
   when(AwaitingFreezeASGResponse) {
-    case Event(msg: FreezeASGCompleted, UpgradeOldStackDataWithASG(oldAsgName, _, _, _)) =>
+    case Event(msg: FreezeASGCompleted, UpgradeOldStackDataWithASG(oldAsgName, _, _, newStackASG)) =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage("New ASG Frozen, Querying old stack size")
+      context.parent ! LogMessage("New ASG Frozen, Querying new stack desired size")
 
-      val oldAsgSizeQuery = actorFactory(ASGSize, context, "oldASGSize", credentials)
-      context.watch(oldAsgSizeQuery)
-      oldAsgSizeQuery ! ASGDesiredSizeQuery(oldAsgName)
-      goto(AwaitingASGDesiredSizeResult)
+      val newAsgSizeQuery = actorFactory(ASGSize, context, "newAsgSize", credentials)
+      context.watch(newAsgSizeQuery)
+      newAsgSizeQuery ! ASGDesiredSizeQuery(newStackASG)
+      goto(AwaitingNewASGDesiredSizeResult)
   }
 
-  when(AwaitingASGDesiredSizeResult) {
-    case Event(ASGDesiredSizeResult(size), UpgradeOldStackDataWithASG(oldStackASG, oldStackName, newStackName, newAsgName)) =>
+  when(AwaitingNewASGDesiredSizeResult) {
+    case Event(ASGDesiredSizeResult(newASGSize), UpgradeOldStackDataWithASG(oldStackASG, oldStackName, newStackName, newAsgName)) =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LogMessage(s"Old ASG desired instances: $size, setting new ASG to $size desired instances")
+      context.parent ! LogMessage(s"New stack desired size: $newASGSize, querying for old stack desired size.")
 
-      val resizeASG = actorFactory(ASGSize, context, "asgResize", credentials)
-      context.watch(resizeASG)
-      resizeASG ! ASGSetDesiredSizeCommand(newAsgName, size)
-      goto(AwaitingASGDesiredSizeSetResponse) using UpgradeOldStackDataWithASGAndSize(oldStackASG, oldStackName, newStackName, newAsgName, size)
+      val oldAsgSizeQuery = actorFactory(ASGSize, context, "oldAsgSize", credentials)
+      context.watch(oldAsgSizeQuery)
+      oldAsgSizeQuery ! ASGDesiredSizeQuery(oldStackASG)
+      goto(AwaitingOldASGCurrentSizeResult) using UpgradeOldStackDataWithASGAndNewSize(oldStackASG, oldStackName, newStackName, newAsgName, newASGSize)
+  }
+
+
+  when(AwaitingOldASGCurrentSizeResult) {
+    case Event(ASGDesiredSizeResult(oldASGSize), UpgradeOldStackDataWithASGAndNewSize(oldStackASG, oldStackName, newStackName, newAsgName, newASGSize)) =>
+      context.unwatch(sender())
+      context.stop(sender())
+      context.parent ! LogMessage(s"Old ASG desired instances: $oldASGSize")
+      if(newASGSize < oldASGSize) {
+        context.parent ! LogMessage(s"Setting new ASG to $oldASGSize desired instances")
+
+        val resizeASG = actorFactory(ASGSize, context, "asgResize", credentials)
+        context.watch(resizeASG)
+        resizeASG ! ASGSetDesiredSizeCommand(newAsgName, oldASGSize)
+        goto(AwaitingASGDesiredSizeSetResponse) using UpgradeOldStackDataWithASGAndBothSizes(oldStackASG, oldStackName, newStackName, newAsgName, newASGSize, oldASGSize)
+      } else {
+        context.parent ! LogMessage(s"New ASG desired size is either greater, or equal to the previous size. Continuing.")
+        self ! ASGSetDesiredSizeRequested
+        goto(AwaitingASGDesiredSizeSetResponse) using UpgradeOldStackDataWithASGAndBothSizes(oldStackASG, oldStackName, newStackName, newAsgName, newASGSize, oldASGSize)
+      }
   }
 
   when(AwaitingASGDesiredSizeSetResponse) {
-    case Event(ASGSetDesiredSizeRequested, UpgradeOldStackDataWithASGAndSize(_, _, _, newAsgName, size)) =>
+    case Event(ASGSetDesiredSizeRequested, UpgradeOldStackDataWithASGAndBothSizes(_, _, _, newAsgName, newASGOriginalSize, oldASGSize)) =>
       context.unwatch(sender())
-      context.stop(sender())
       context.parent ! LogMessage(s"ASG Desired size has been set, querying ASG for ELB list and attached instance IDs")
 
-      val asgELBDetailQuery = actorFactory(HealthyInstanceSupervisor, context, "healthyInstanceSupervisor", credentials, size, newAsgName, actorFactory)
+      val asgELBDetailQuery = actorFactory(HealthyInstanceSupervisor, context, "healthyInstanceSupervisor", credentials, oldASGSize, newAsgName, actorFactory)
       context.watch(asgELBDetailQuery)
       asgELBDetailQuery ! CheckHealth
       goto(AwaitingHealthyNewASG)
   }
 
   when(AwaitingHealthyNewASG) {
-    case Event(HealthStatusMet, UpgradeOldStackDataWithASGAndSize(_, _, _, newAsgName, _)) =>
+    case Event(HealthStatusMet, UpgradeOldStackDataWithASGAndBothSizes(_, _, _, newAsgName, _, _)) =>
       context.unwatch(sender())
       context.stop(sender())
       context.parent ! LogMessage(s"New ASG up and reporting healthy in the ELB(s)")
@@ -169,7 +188,8 @@ object NewStackSupervisor extends PropFactory {
   case object AwaitingStackCreateCompleted extends NewStackState
   case object AwaitingStackASGName extends NewStackState
   case object AwaitingFreezeASGResponse extends NewStackState
-  case object AwaitingASGDesiredSizeResult extends NewStackState
+  case object AwaitingNewASGDesiredSizeResult extends NewStackState
+  case object AwaitingOldASGCurrentSizeResult extends NewStackState
   case object AwaitingASGDesiredSizeSetResponse extends NewStackState
   case object AwaitingHealthyNewASG extends NewStackState
 
@@ -184,8 +204,10 @@ object NewStackSupervisor extends PropFactory {
                                                                                                           with FirstStepData
   case class UpgradeOldStackDataWithASG(oldStackASG: String, oldStackName: String, newStackName: String,
                                         newStackASG: String) extends NewStackData
-  case class UpgradeOldStackDataWithASGAndSize(oldStackASG: String, oldStackName: String, newStackName: String,
-                                               newStackASG: String, oldASGSize: Int) extends NewStackData
+  case class UpgradeOldStackDataWithASGAndNewSize(oldStackASG: String, oldStackName: String, newStackName: String,
+                                               newStackASG: String, newASGSize: Int) extends NewStackData
+  case class UpgradeOldStackDataWithASGAndBothSizes(oldStackASG: String, oldStackName: String, newStackName: String,
+                                               newStackASG: String, newASGSize: Int, oldASGSize: Int) extends NewStackData
 
   override def props(args: Any*): Props = Props(classOf[NewStackSupervisor], args: _*)
 }
