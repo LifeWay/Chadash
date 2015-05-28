@@ -1,8 +1,3 @@
-import play.PlayImport._
-import play.PlayScala
-import sbt.Keys._
-import sbtbuildinfo.Plugin._
-
 name := "chadash"
 version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
 scalaVersion := "2.11.6"
@@ -42,3 +37,9 @@ buildInfoKeys ++= Seq[BuildInfoKey](
   }
 )
 buildInfoPackage := "com.lifeway.chadash.appversion"
+
+ScoverageSbtPlugin.ScoverageKeys.coverageMinimum := 14.50
+ScoverageSbtPlugin.ScoverageKeys.coverageFailOnMinimum := false
+ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := true
+
+ScoverageSbtPlugin.ScoverageKeys.coverageExcludedPackages := "<empty>;appversion.BuildInfo;"
