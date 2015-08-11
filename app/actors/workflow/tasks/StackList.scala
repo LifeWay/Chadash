@@ -3,10 +3,12 @@ package actors.workflow.tasks
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.cloudformation.model.ListStacksRequest
+import com.amazonaws.services.cloudformation.AmazonCloudFormation
+import com.amazonaws.services.cloudformation.model.{StackSummary, ListStacksRequest}
 import com.amazonaws.services.cloudformation.model.StackStatus._
 import utils.{AmazonCloudFormationService, PropFactory}
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
 class StackList(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
@@ -16,15 +18,31 @@ class StackList(credentials: AWSCredentials) extends AWSRestartableActor with Am
   override def receive: Receive = {
     case query: ListNonDeletedStacksStartingWithName =>
 
-      val listStackRequests = new ListStacksRequest()
+      val listStackRequest = new ListStacksRequest()
                               .withStackStatusFilters(stackStatusFilters.toArray: _*)
 
       val awsClient = cloudFormationClient(credentials)
-      val results = awsClient.listStacks(listStackRequests).getStackSummaries.asScala.toSeq
+      val results = getStackSummaries(awsClient, listStackRequest)
       val filteredResults = results.filter(p => p.getStackName.startsWith(query.stackName))
       val filteredStackNames = filteredResults.foldLeft(Seq.empty[String])((sum, i) => sum :+ i.getStackName)
 
       context.parent ! FilteredStacks(filteredStackNames)
+  }
+
+  def getStackSummaries(awsClient: AmazonCloudFormation, listStacksRequest: ListStacksRequest): Seq[StackSummary] = {
+    @tailrec
+    def impl(awsClient: AmazonCloudFormation, listStacksRequest: ListStacksRequest, sum: Seq[StackSummary]): Seq[StackSummary] = {
+      val results = awsClient.listStacks(listStacksRequest)
+      val pageSummaries = results.getStackSummaries.asScala.toSeq
+      val totalSummaries = sum ++ pageSummaries
+      if (results.getNextToken == null) {
+        totalSummaries
+      } else {
+        val nextPageRequest = listStacksRequest.withNextToken(results.getNextToken)
+        impl(awsClient, nextPageRequest, totalSummaries)
+      }
+    }
+    impl(awsClient, listStacksRequest, Seq.empty[StackSummary])
   }
 }
 
