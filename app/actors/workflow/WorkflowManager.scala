@@ -76,7 +76,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       val stepData: Map[String, String] = Map("stackFileContents" -> stackJson.toString())
       val validateAndFreezeSupervisor = actorFactory(ValidateAndFreezeSupervisor, context, "validateAndFreezeSupervisor", creds, actorFactory)
       context.watch(validateAndFreezeSupervisor)
-      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath, data.appVersion)
+      validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath, data.version)
       goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
   }
 
@@ -99,7 +99,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          stackLauncher ! NewStackFirstLaunchCommand(data.stackName, data.amiId, data.appVersion, Json.parse(stackFile))
+          stackLauncher ! NewStackFirstLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile))
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
       goto(AwaitingStackLaunched)
@@ -112,7 +112,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          stackLauncher ! NewStackUpgradeLaunchCommand(data.stackName, data.amiId, data.appVersion, Json.parse(stackFile), oldStackName, oldASGName)
+          stackLauncher ! NewStackUpgradeLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile), oldStackName, oldASGName)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
       goto(AwaitingStackLaunched) using DeployDataWithCredsWithSteps(data, creds, newStepData)

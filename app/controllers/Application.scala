@@ -65,9 +65,10 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
     }
   }
 
-  def statusSocket(appName: String, version: String) = {
+  def statusSocket(appName: String, versionString: String) = {
     WebSocket.tryAcceptWithActor[String, JsValue] { request =>
       implicit val to = Timeout(Duration(2, "seconds"))
+      val version = DeploymentSupervisor.buildVersion(versionString)
       val f = for (
         res <- deploymentActor.actor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)
       ) yield res
@@ -79,9 +80,10 @@ class Application @Inject()(deploymentActor: DeploymentActor) extends Controller
     }
   }
 
-  def statusEvents(appName: String, version: String) = Action.async {
+  def statusEvents(appName: String, versionString: String) = Action.async {
     implicit val to = Timeout(2.seconds)
     //It's very important that each request gets its own WorkflowStatusEventStream actor - no sharing the enumerator!
+    val version = DeploymentSupervisor.buildVersion(versionString)
     val f = for {
       logSubscribeToMe <- (deploymentActor.actor ? WorkflowLog.DeployStatusSubscribeRequest(appName, version)).mapTo[SubscribeToMe]
       eventStreamRef <- Future[ActorRef](ChadashSystem.system.actorOf(WorkflowStatusEventStream.props(logSubscribeToMe.ref)))

@@ -40,7 +40,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, NewStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("newstack/somename", "chadash-newstack-somename-v1-0", "1.0", "test-ami", 30)))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("newstack/somename", "chadash-newstack-somename-v1-0", DeploymentSupervisor.buildVersion("1.0"), "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
@@ -62,7 +62,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, UpdateStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-v1-1", "1.1", "test-ami", 30)))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/somename", "chadash-updatestack-somename-sv20-av1-1", DeploymentSupervisor.buildVersion("1.1::20"), "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
@@ -74,7 +74,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("has not yet reached CREATE_COMPLETE status")
-    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New stack has reached CREATE_COMPLETE status")
+    loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New stack has reached CREATE_COMPLETE status. chadash-updatestack-somename-sv20-av1-1")
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Freezing alarm and scheduled based autoscaling on the new ASG")
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New ASG Frozen, Querying new stack desired size")
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("New stack desired size: 2, querying for old stack desired size.")
@@ -103,7 +103,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, GrowStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/growstack", "chadash-updatestack-growstack-v1-2", "1.2", "test-ami", 30)))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("updatestack/growstack", "chadash-updatestack-growstack-v1-2", DeploymentSupervisor.buildVersion("1.2"), "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
@@ -165,7 +165,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     val workflowProps = Props(new WorkflowManager(loggingProbe.ref, ExistingStackActorFactory))
     val workflowProxy = WorkflowProxy(sendingProbe, system, workflowProps)
 
-    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("existingstack/somename", "chadash-existingstack-somename-v1-0", "1.0", "test-ami", 30)))
+    sendingProbe.send(workflowProxy, StartDeployWorkflow(DeploymentSupervisor.Deploy("existingstack/somename", "chadash-existingstack-somename-v1-0", DeploymentSupervisor.buildVersion("1.0"), "test-ami", 30)))
     sendingProbe.expectMsg(WorkflowStarted)
     loggingProbe.expectMsg(WatchThisWorkflow)
     loggingProbe.expectMsgClass(classOf[LogMessage]).message should include("Stack JSON data loaded")
@@ -305,12 +305,15 @@ object WorkflowManagerSystemTest {
       val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(appVersionTag).withParameters(params: _*).withStackName("chadash-newstack-somename-v1-0")
 
 
-      val updateAppVersionTag = new Tag().withKey("ApplicationVersion").withValue("1.1")
+      val updateAppVersionTags = Seq(
+        new Tag().withKey("ApplicationVersion").withValue("1.1"),
+        new Tag().withKey("StackVersion").withValue("20")
+      )
       val updateParams        = Seq(
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
         new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.1")
       )
-      val updateReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(updateAppVersionTag).withParameters(updateParams: _*).withStackName("chadash-updatestack-somename-v1-1")
+      val updateReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(updateAppVersionTags: _*).withParameters(updateParams: _*).withStackName("chadash-updatestack-somename-sv20-av1-1")
 
 
       val growAppVersionTag = new Tag().withKey("ApplicationVersion").withValue("1.2")
@@ -336,7 +339,7 @@ object WorkflowManagerSystemTest {
     object StackCreateCompleteMonitor {
       val mockedClient            = mock[AmazonCloudFormation]
       val createCompleteReq       = new DescribeStacksRequest().withStackName("chadash-newstack-somename-v1-0")
-      val createCompleteUpdateReq = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-v1-1")
+      val createCompleteUpdateReq = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-sv20-av1-1")
       val growCompleteUpdateReq   = new DescribeStacksRequest().withStackName("chadash-updatestack-growstack-v1-2")
       val stackPending            = new Stack().withStackStatus(StackStatus.CREATE_IN_PROGRESS)
       val stackComplete           = new Stack().withStackStatus(StackStatus.CREATE_COMPLETE)
@@ -355,7 +358,7 @@ object WorkflowManagerSystemTest {
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, Tick)
       })
 
-      val updateProps = Props(new StackCreateCompleteMonitor(null, "chadash-updatestack-somename-v1-1") {
+      val updateProps = Props(new StackCreateCompleteMonitor(null, "chadash-updatestack-somename-sv20-av1-1") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
         override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
@@ -380,8 +383,8 @@ object WorkflowManagerSystemTest {
       val asgStack         = new Stack().withOutputs(asgOutput)
       val asgSuccessResult = new DescribeStacksResult().withStacks(asgStack)
 
-      val asgUpdateReq    = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-v1-1")
-      val asgUpdateOutput = new Output().withOutputKey("ChadashASG").withOutputValue("chadash-updatestack-somename-v1-1-asg07907234")
+      val asgUpdateReq    = new DescribeStacksRequest().withStackName("chadash-updatestack-somename-sv20-av1-1")
+      val asgUpdateOutput = new Output().withOutputKey("ChadashASG").withOutputValue("chadash-updatestack-somename-sv20-av1-1-asg07907234")
       val asgUpdateStack  = new Stack().withOutputs(asgUpdateOutput)
       val asgUpdateResult = new DescribeStacksResult().withStacks(asgUpdateStack)
 
@@ -426,7 +429,7 @@ object WorkflowManagerSystemTest {
     object FreezeASG {
       val mockedClient     = mock[AmazonAutoScaling]
       val successReq       = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-v1-0-asg23562342").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
-      val updateSuccessReq = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-v1-1-asg07907234").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
+      val updateSuccessReq = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-sv20-av1-1-asg07907234").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
 
       val growReq        = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-1-asg07907236").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
       val growNewASGReq  = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-2-asg07907237").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
@@ -448,7 +451,7 @@ object WorkflowManagerSystemTest {
       val mockedClient         = mock[AmazonAutoScaling]
       val describeASGReq       = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-v1-0-asg23562342")
       val oldAsg               = new AutoScalingGroup().withDesiredCapacity(2)
-      val describeNewASGReq    = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-v1-1-asg07907234")
+      val describeNewASGReq    = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-sv20-av1-1-asg07907234")
       val newAsg               = new AutoScalingGroup().withDesiredCapacity(2)
       val describeASGResult    = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(oldAsg)
       val describeNewASGResult = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(newAsg)
@@ -480,7 +483,7 @@ object WorkflowManagerSystemTest {
 
     object ASGInfo {
       val mockedClient       = mock[AmazonAutoScaling]
-      val describeASGRequest = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-v1-1-asg07907234")
+      val describeASGRequest = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("chadash-updatestack-somename-sv20-av1-1-asg07907234")
       val instances          = Seq(
         new com.amazonaws.services.autoscaling.model.Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-1"),
         new com.amazonaws.services.autoscaling.model.Instance().withLifecycleState(LifecycleState.InService).withInstanceId("test-instance-id-2")
@@ -577,7 +580,7 @@ object WorkflowManagerSystemTest {
 
     object UnfreezeASG {
       val mockedClient = mock[AmazonAutoScaling]
-      val successReq   = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-v1-1-asg07907234")
+      val successReq   = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-sv20-av1-1-asg07907234")
       val growReq      = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-2-asg07907237")
 
       Mockito.doThrow(new IllegalArgumentException).when(mockedClient).resumeProcesses(org.mockito.Matchers.anyObject())

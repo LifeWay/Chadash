@@ -1,5 +1,6 @@
 package actors.workflow.tasks
 
+import actors.DeploymentSupervisor
 import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackCreator.{StackCreateCommand, StackCreateRequestCompleted}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
@@ -40,7 +41,7 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("success-stack", "image-id", "1.0", Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("success-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
     probe.expectMsg(StackCreateRequestCompleted)
   }
 
@@ -48,7 +49,7 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("fail-stack", "image-id", "1.0", Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("fail-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
     val msg = probe.expectMsgClass(classOf[LogMessage])
     msg.message should include("AmazonServiceException")
   }
@@ -57,7 +58,7 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("client-exception", "image-id", "1.0", Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("client-exception", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
     probe.expectMsg(StackCreateRequestCompleted)
   }
 

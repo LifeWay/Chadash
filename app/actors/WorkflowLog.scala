@@ -1,5 +1,6 @@
 package actors
 
+import actors.DeploymentSupervisor.Version
 import akka.actor._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -20,7 +21,7 @@ object WorkflowLog {
 
   case class SubscribeToMe(ref: ActorRef)
   case object WatchThisWorkflow
-  case class DeployStatusSubscribeRequest(stackPath: String, appVersion: String)
+  case class DeployStatusSubscribeRequest(stackPath: String, version: Version)
   case object DeployStatusSubscribeConfirm
 
   case object TimeToDie

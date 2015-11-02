@@ -1,6 +1,7 @@
 package actors.workflow.steps
 
 import actors.DeploymentSupervisor
+import actors.DeploymentSupervisor.Version
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.WorkflowManager.StepFailed
 import actors.workflow.steps.ValidateAndFreezeSupervisor.{ValidateAndFreezeData, ValidateAndFreezeStates}
@@ -110,7 +111,7 @@ class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
 object ValidateAndFreezeSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait ValidateAndFreezeMessage
-  case class ValidateAndFreezeStackCommand(stackPath: String, newVersion: String) extends ValidateAndFreezeMessage
+  case class ValidateAndFreezeStackCommand(stackPath: String, newVersion: Version) extends ValidateAndFreezeMessage
   case object NoExistingStacksExist extends ValidateAndFreezeMessage
   case object StackVersionAlreadyExists extends ValidateAndFreezeMessage
   case class VerifiedAndStackFrozen(oldStackName: String, oldASGName: String) extends ValidateAndFreezeMessage

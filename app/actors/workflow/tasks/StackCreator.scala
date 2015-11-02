@@ -1,5 +1,6 @@
 package actors.workflow.tasks
 
+import actors.DeploymentSupervisor.{StackAndAppVersion, AppVersion, Version}
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
@@ -15,7 +16,12 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor with
     case launchCommand: StackCreateCommand =>
       val appVersionTag = new Tag()
                           .withKey("ApplicationVersion")
-                          .withValue(launchCommand.version)
+                          .withValue(launchCommand.version.appVersion)
+
+      val tags = launchCommand.version match {
+        case x:AppVersion => Seq(appVersionTag)
+        case x:StackAndAppVersion => Seq(appVersionTag, new Tag().withKey("StackVersion").withValue(x.stackVersion))
+      }
 
       val params = Seq(
         new Parameter()
@@ -23,13 +29,13 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor with
         .withParameterValue(launchCommand.imageId),
         new Parameter()
         .withParameterKey("ApplicationVersion")
-        .withParameterValue(launchCommand.version)
+        .withParameterValue(launchCommand.version.appVersion)
       )
 
       val createStackRequest = new CreateStackRequest()
                                .withTemplateBody(launchCommand.stackData.toString())
                                .withStackName(launchCommand.stackName)
-                               .withTags(appVersionTag)
+                               .withTags(tags.toArray: _*)
                                .withParameters(params.toArray: _*)
 
       val awsClient = cloudFormationClient(credentials)
@@ -40,7 +46,7 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor with
 }
 
 object StackCreator extends PropFactory {
-  case class StackCreateCommand(stackName: String, imageId: String, version: String, stackData: JsValue)
+  case class StackCreateCommand(stackName: String, imageId: String, version: Version, stackData: JsValue)
   case object StackCreateRequestCompleted
 
   override def props(args: Any*): Props = Props(classOf[StackCreator], args: _*)

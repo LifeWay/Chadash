@@ -1,5 +1,6 @@
 package actors.workflow.steps
 
+import actors.DeploymentSupervisor.Version
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.HealthyInstanceSupervisor.{CheckHealth, HealthStatusMet}
 import actors.workflow.steps.NewStackSupervisor.{NewStackData, NewStackState}
@@ -174,9 +175,9 @@ class NewStackSupervisor(credentials: AWSCredentials,
 object NewStackSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait NewStackMessage
-  case class NewStackFirstLaunchCommand(newStackName: String, imageId: String, version: String,
+  case class NewStackFirstLaunchCommand(newStackName: String, imageId: String, version: Version,
                                         stackContent: JsValue) extends NewStackMessage
-  case class NewStackUpgradeLaunchCommand(newStackName: String, imageId: String, version: String, stackContent: JsValue,
+  case class NewStackUpgradeLaunchCommand(newStackName: String, imageId: String, version: Version, stackContent: JsValue,
                                           oldStackName: String, oldStackASG: String) extends NewStackMessage
   case class FirstStackLaunchCompleted(newStackName: String) extends NewStackMessage
   case class StackUpgradeLaunchCompleted(newAsgName: String) extends NewStackMessage
