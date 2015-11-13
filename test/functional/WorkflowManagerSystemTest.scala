@@ -302,7 +302,7 @@ object WorkflowManagerSystemTest {
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
         new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.0")
       )
-      val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(appVersionTag).withParameters(params: _*).withStackName("chadash-newstack-somename-v1-0")
+      val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("chadash-newstack-somename-v1-0")
 
 
       val updateAppVersionTags = Seq(
@@ -313,7 +313,7 @@ object WorkflowManagerSystemTest {
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
         new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.1")
       )
-      val updateReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(updateAppVersionTags: _*).withParameters(updateParams: _*).withStackName("chadash-updatestack-somename-sv20-av1-1")
+      val updateReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(updateAppVersionTags: _*).withParameters(updateParams: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("chadash-updatestack-somename-sv20-av1-1")
 
 
       val growAppVersionTag = new Tag().withKey("ApplicationVersion").withValue("1.2")
@@ -321,7 +321,7 @@ object WorkflowManagerSystemTest {
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
         new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.2")
       )
-      val growReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(growAppVersionTag).withParameters(growParams: _*).withStackName("chadash-updatestack-growstack-v1-2")
+      val growReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(growAppVersionTag).withParameters(growParams: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("chadash-updatestack-growstack-v1-2")
 
 
       Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(org.mockito.Matchers.anyObject())

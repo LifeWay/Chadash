@@ -7,7 +7,7 @@ import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
-import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
+import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter, Tag}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
@@ -26,9 +26,9 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     new Parameter().withParameterKey("ImageId").withParameterValue("image-id"),
     new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.0")
   )
-  val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withStackName("success-stack")
-  val reqFail       = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withStackName("fail-stack")
-  val reqClientExc  = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withStackName("client-exception")
+  val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("success-stack")
+  val reqFail       = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("fail-stack")
+  val reqClientExc  = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("client-exception")
 
   //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
   Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(org.mockito.Matchers.anyObject())
