@@ -4,7 +4,7 @@ import actors.DeploymentSupervisor.{StackAndAppVersion, AppVersion, Version}
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.cloudformation.model.{CreateStackRequest, Parameter, Tag}
+import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
 import utils.{AmazonCloudFormationService, PropFactory}
 
@@ -37,6 +37,7 @@ class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor with
                                .withStackName(launchCommand.stackName)
                                .withTags(tags.toArray: _*)
                                .withParameters(params.toArray: _*)
+                               .withCapabilities(Capability.CAPABILITY_IAM)
 
       val awsClient = cloudFormationClient(credentials)
       awsClient.createStack(createStackRequest)
