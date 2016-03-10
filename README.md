@@ -446,7 +446,7 @@ In this manner, you can create users that have access to exactly what they shoul
 ### Using Chadash in practice
 Chadash is a nice tool by itself, but really, you want Chadash to be called by your build pipeline, and have that pipeline show a log of the deploy in progress. If the deploy fails, you want your build pipeline to fail so that you can notify the team via the standard mechanisms available by your build tool.
 
-To do this we've authored an overly simple app that makes the API call for your to do your deployment and then makes another API call to follow the logs using the server-sent-event connection. If the deploy ends in an error, the app returns a non-zero exit code resulting in your build tool failing the build (the deploy). The use of the Chadash client is completely optional, see its repository for more information: [TODO: insert link]
+To do this we've authored an overly simple app that makes the API call for your to do your deployment and then makes another API call to follow the logs using the server-sent-event connection. If the deploy ends in an error, the app returns a non-zero exit code resulting in your build tool failing the build (the deploy). The use of the Chadash client is completely optional, see its repository for more information: https://github.com/lifeway/Chadash-Client
 
 
 
