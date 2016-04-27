@@ -18,7 +18,8 @@ import scala.concurrent.duration._
  */
 trait AWSRestartableActor extends Actor with ActorLogging {
 
-  def pauseTime(): FiniteDuration = 15.seconds
+  //restart the actor with some jitter. somewhere between 2 and 20 seconds.
+  def pauseTime(): FiniteDuration = (2 + scala.util.Random.nextInt(20)).seconds
 
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
