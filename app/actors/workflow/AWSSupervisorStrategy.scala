@@ -10,9 +10,15 @@ import scala.concurrent.duration._
 trait AWSSupervisorStrategy extends Actor with ActorLogging {
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 20, loggingEnabled = true) {
     case ex: AmazonServiceException =>
-      context.parent ! LogMessage(ex.toString)
-      Stop
-
+      ex.getErrorCode match {
+        case "ServiceUnavailable" | "Throttling" =>
+          log.debug("Supervisor Authorized Restart")
+          Restart
+        case _ =>
+          context.parent ! LogMessage(ex.toString)
+          Stop
+      }
+      
     case _: AmazonClientException =>
       log.debug("Supervisor Authorized Restart")
       Restart
