@@ -38,7 +38,7 @@ buildInfoKeys ++= Seq[BuildInfoKey](
 )
 buildInfoPackage := "com.lifeway.chadash.appversion"
 
-ScoverageSbtPlugin.ScoverageKeys.coverageMinimum := 14.50
+ScoverageSbtPlugin.ScoverageKeys.coverageMinimum := 60
 ScoverageSbtPlugin.ScoverageKeys.coverageFailOnMinimum := false
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := true
 
