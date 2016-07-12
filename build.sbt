@@ -4,7 +4,7 @@ scalaVersion := "2.11.6"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala).settings(
-  javaOptions in Test += "-Dconfig.file=conf/application.test.conf"
+  javaOptions in Test += "-Dconfig.file=conf/application.test.conf -Xmx1G"
   //FOR DEBUGGING TESTS:
   //,javaOptions in Test += "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=9999"
 )
