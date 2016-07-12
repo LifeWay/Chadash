@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.ELBHealthyInstanceChecker.{ELBInstanceListAllHealthy, ELBInstanceListNotHealthy, ELBIsInstanceListHealthy}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, DescribeInstanceHealthResult, Instance, InstanceState}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -72,7 +72,7 @@ class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestCo
   val props = Props(new ELBHealthyInstanceChecker(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def elasticLoadBalancingClient(credentials: AWSCredentials) = mockedClient
+    override def elasticLoadBalancingClient(credentials: AWSCredentialsProvider) = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

@@ -23,7 +23,7 @@ class AmazonCredentials extends Actor with ActorLogging {
 
   override def postStop() = tick.cancel()
 
-  var credentials: Option[AWSCredentials] = None
+  var credentialProvider: Option[AWSCredentialsProvider] = None
 
   override def receive: Receive = {
     case Tick =>
@@ -36,7 +36,7 @@ class AmazonCredentials extends Actor with ActorLogging {
       loadCreds()
 
     case RequestCredentials =>
-      sender() ! (credentials match {
+      sender() ! (credentialProvider match {
         case Some(x) => CurrentCredentials(x)
         case None => NoCredentials
       })
@@ -58,7 +58,7 @@ class AmazonCredentials extends Actor with ActorLogging {
         case "SystemPropertiesCredentialsProvider" => new SystemPropertiesCredentialsProvider()
       }
 
-      credentials = Some(provider.getCredentials)
+      credentialProvider = Some(provider)
     } catch {
       case ex: Exception => {
         log.debug("Error loading credentials...leaving them as-is. ", ex)
@@ -73,5 +73,5 @@ object AmazonCredentials {
   case object RequestCredentials
   case object ForceReload
   case object NoCredentials
-  case class CurrentCredentials(credentials: AWSCredentials)
+  case class CurrentCredentials(credentials: AWSCredentialsProvider)
 }

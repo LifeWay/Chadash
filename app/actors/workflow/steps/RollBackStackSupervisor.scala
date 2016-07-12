@@ -9,10 +9,10 @@ import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCommand, UnfreezeASGComplet
 import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo, UnfreezeASG}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor.{ActorLogging, FSM, Props, Terminated}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import utils.{ActorFactory, PropFactory}
 
-class RollBackStackSupervisor(credentials: AWSCredentials,
+class RollBackStackSupervisor(credentials: AWSCredentialsProvider,
                               actorFactory: ActorFactory) extends FSM[RollBackState, RollBackData] with ActorLogging
                                                                   with AWSSupervisorStrategy {
 

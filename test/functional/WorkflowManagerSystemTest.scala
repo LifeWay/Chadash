@@ -10,7 +10,7 @@ import actors.workflow.tasks.StackCreateCompleteMonitor.Tick
 import actors.workflow.tasks._
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
@@ -274,7 +274,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackLoader(null, "test-bucket-name") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def s3Client(credentials: AWSCredentials): AmazonS3 = mockedClient
+        override def s3Client(credentials: AWSCredentialsProvider): AmazonS3 = mockedClient
       })
     }
 
@@ -291,7 +291,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackList(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
       })
     }
 
@@ -332,7 +332,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackCreator(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
       })
     }
 
@@ -353,7 +353,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackCreateCompleteMonitor(null, "chadash-newstack-somename-v1-0") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, Tick)
       })
@@ -361,7 +361,7 @@ object WorkflowManagerSystemTest {
       val updateProps = Props(new StackCreateCompleteMonitor(null, "chadash-updatestack-somename-sv20-av1-1") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, Tick)
       })
@@ -369,7 +369,7 @@ object WorkflowManagerSystemTest {
       val growProps = Props(new StackCreateCompleteMonitor(null, "chadash-updatestack-growstack-v1-2") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, Tick)
       })
@@ -422,7 +422,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackInfo(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
       })
     }
 
@@ -443,7 +443,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new FreezeASG(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+        override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
       })
     }
 
@@ -477,7 +477,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new ASGSize(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+        override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
       })
     }
 
@@ -508,7 +508,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new ASGInfo(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+        override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
       })
     }
 
@@ -535,7 +535,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new ELBHealthyInstanceChecker(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def elasticLoadBalancingClient(credentials: AWSCredentials) = mockedClient
+        override def elasticLoadBalancingClient(credentials: AWSCredentialsProvider) = mockedClient
       })
     }
 
@@ -556,7 +556,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new StackDeleteCompleteMonitor(null, "some-stack-id", "chadash-newstack-somename-v1-0") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, actors.workflow.tasks.StackDeleteCompleteMonitor.Tick)
       })
@@ -564,7 +564,7 @@ object WorkflowManagerSystemTest {
       val growProps = Props(new StackDeleteCompleteMonitor(null, "some-growstack-id", "chadash-newstack-growstack-v1-1") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, actors.workflow.tasks.StackDeleteCompleteMonitor.Tick)
       })
@@ -572,7 +572,7 @@ object WorkflowManagerSystemTest {
       val deleteStack = Props(new StackDeleteCompleteMonitor(null, "delete-stack-id", "chadash-updatestack-somename-v1-2") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
         override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, actors.workflow.tasks.StackDeleteCompleteMonitor.Tick)
       })
@@ -590,7 +590,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new UnfreezeASG(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+        override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
       })
     }
 
@@ -608,7 +608,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new DeleteStack(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
       })
     }
 
@@ -623,7 +623,7 @@ object WorkflowManagerSystemTest {
       val props = Props(new actors.workflow.tasks.StackList(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
 
-        override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+        override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
       })
     }
   }

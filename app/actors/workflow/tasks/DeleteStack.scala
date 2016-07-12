@@ -2,11 +2,11 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.model.DeleteStackRequest
 import utils.{AmazonCloudFormationService, PropFactory}
 
-class DeleteStack(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
+class DeleteStack(credentials: AWSCredentialsProvider) extends AWSRestartableActor with AmazonCloudFormationService {
 
   import actors.workflow.tasks.DeleteStack._
 

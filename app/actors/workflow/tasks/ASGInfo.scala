@@ -2,13 +2,13 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import utils.{AmazonAutoScalingService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class ASGInfo(credentials: AWSCredentials) extends AWSRestartableActor with AmazonAutoScalingService {
+class ASGInfo(credentials: AWSCredentialsProvider) extends AWSRestartableActor with AmazonAutoScalingService {
 
   import actors.workflow.tasks.ASGInfo._
 

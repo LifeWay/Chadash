@@ -12,11 +12,11 @@ import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse}
 import actors.workflow.tasks._
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import play.api.libs.json.JsValue
 import utils.{ActorFactory, PropFactory}
 
-class NewStackSupervisor(credentials: AWSCredentials,
+class NewStackSupervisor(credentials: AWSCredentialsProvider,
                          actorFactory: ActorFactory) extends FSM[NewStackState, NewStackData] with ActorLogging
                                                              with AWSSupervisorStrategy {
 

@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackInfo.{StackASGNameQuery, StackASGNameResponse, StackIdQuery, StackIdResponse}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, DescribeStacksResult, Output, Stack}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -71,7 +71,7 @@ class StackInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   val props = Props(new StackInfo(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+    override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

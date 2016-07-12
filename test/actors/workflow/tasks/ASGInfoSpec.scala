@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.ASGInfo.{ASGInServiceInstancesAndELBSQuery, ASGInServiceInstancesAndELBSResult}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -58,7 +58,7 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   val asgInfoProps = Props(new ASGInfo(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+    override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

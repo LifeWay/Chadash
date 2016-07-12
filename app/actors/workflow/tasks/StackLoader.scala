@@ -2,7 +2,7 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.model.S3Object
 import org.apache.commons.io.IOUtils
@@ -10,7 +10,7 @@ import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import utils.{AmazonS3Service, PropFactory}
 
-class StackLoader(credentials: AWSCredentials, bucketName: String) extends AWSRestartableActor with AmazonS3Service {
+class StackLoader(credentials: AWSCredentialsProvider, bucketName: String) extends AWSRestartableActor with AmazonS3Service {
 
   import actors.workflow.tasks.StackLoader._
 

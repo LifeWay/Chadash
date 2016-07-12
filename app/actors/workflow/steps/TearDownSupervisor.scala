@@ -9,10 +9,10 @@ import actors.workflow.tasks.UnfreezeASG.{UnfreezeASGCommand, UnfreezeASGComplet
 import actors.workflow.tasks.{DeleteStack, StackDeleteCompleteMonitor, StackInfo, UnfreezeASG}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import utils.{ActorFactory, PropFactory}
 
-class TearDownSupervisor(credentials: AWSCredentials,
+class TearDownSupervisor(credentials: AWSCredentialsProvider,
                          actorFactory: ActorFactory) extends FSM[TearDownState, TearDownData] with ActorLogging
                                                              with AWSSupervisorStrategy {
 

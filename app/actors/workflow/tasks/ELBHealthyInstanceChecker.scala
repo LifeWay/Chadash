@@ -2,13 +2,13 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, Instance}
 import utils.{AmazonElasticLoadBalancingService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class ELBHealthyInstanceChecker(credentials: AWSCredentials) extends AWSRestartableActor
+class ELBHealthyInstanceChecker(credentials: AWSCredentialsProvider) extends AWSRestartableActor
                                                                      with AmazonElasticLoadBalancingService {
 
   import actors.workflow.tasks.ELBHealthyInstanceChecker._

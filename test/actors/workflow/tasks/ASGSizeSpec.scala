@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.ASGSize._
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model.{AutoScalingGroup, DescribeAutoScalingGroupsRequest, DescribeAutoScalingGroupsResult, SetDesiredCapacityRequest}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -69,7 +69,7 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   val props = Props(new ASGSize(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+    override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

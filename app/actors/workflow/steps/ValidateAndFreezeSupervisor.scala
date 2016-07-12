@@ -11,10 +11,10 @@ import actors.workflow.tasks.StackList.{FilteredStacks, ListNonDeletedStacksStar
 import actors.workflow.tasks.{FreezeASG, StackInfo, StackList}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import utils.{ActorFactory, PropFactory}
 
-class ValidateAndFreezeSupervisor(credentials: AWSCredentials,
+class ValidateAndFreezeSupervisor(credentials: AWSCredentialsProvider,
                                   actorFactory: ActorFactory) extends FSM[ValidateAndFreezeStates, ValidateAndFreezeData]
                                                                       with ActorLogging with AWSSupervisorStrategy {
 

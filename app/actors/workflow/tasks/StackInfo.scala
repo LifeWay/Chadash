@@ -2,13 +2,13 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import utils.{AmazonCloudFormationService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class StackInfo(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
+class StackInfo(credentials: AWSCredentialsProvider) extends AWSRestartableActor with AmazonCloudFormationService {
 
   import actors.workflow.tasks.StackInfo._
 

@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackList.{FilteredStacks, ListNonDeletedStacksStartingWithName}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.StackStatus._
 import com.amazonaws.services.cloudformation.model.{ListStacksRequest, ListStacksResult, StackSummary}
@@ -60,13 +60,13 @@ class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   val props = Props(new StackList(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+    override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
   })
 
   val failProps = Props(new StackList(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = failMockedClient
+    override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = failMockedClient
   })
 
   class TestActorFactory(prop: Props) extends ActorFactory {
