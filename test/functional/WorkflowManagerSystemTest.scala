@@ -29,7 +29,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
+class WorkflowManagerSystemTest extends TestKit(ActorSystem("WorkflowManagerSystemTestKit", TestConfiguration.testConfig)) with FlatSpecLike
                                         with Matchers with BeforeAndAfterAll {
 
   import functional.WorkflowManagerSystemTest._
