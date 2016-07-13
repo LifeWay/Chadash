@@ -3,12 +3,12 @@ package actors.workflow.tasks
 import actors.DeploymentSupervisor.{StackAndAppVersion, AppVersion, Version}
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter, Tag}
 import play.api.libs.json.JsValue
 import utils.{AmazonCloudFormationService, PropFactory}
 
-class StackCreator(credentials: AWSCredentials) extends AWSRestartableActor with AmazonCloudFormationService {
+class StackCreator(credentials: AWSCredentialsProvider) extends AWSRestartableActor with AmazonCloudFormationService {
 
   import actors.workflow.tasks.StackCreator._
 

@@ -2,13 +2,13 @@ package actors.workflow.tasks
 
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
 import utils.{AmazonAutoScalingService, PropFactory}
 
 import scala.collection.JavaConverters._
 
-class FreezeASG(credentials: AWSCredentials) extends AWSRestartableActor with AmazonAutoScalingService {
+class FreezeASG(credentials: AWSCredentialsProvider) extends AWSRestartableActor with AmazonAutoScalingService {
 
   import actors.workflow.tasks.FreezeASG._
 

@@ -6,7 +6,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.s3.AmazonS3
 import com.amazonaws.services.s3.model.S3Object
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -68,7 +68,7 @@ class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   val props = Props(new StackLoader(null, "test-bucket-name") {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def s3Client(credentials: AWSCredentials): AmazonS3 = mockedClient
+    override def s3Client(credentials: AWSCredentialsProvider): AmazonS3 = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

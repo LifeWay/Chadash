@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.StackDeleteCompleteMonitor.{StackDeleteCompleted, Tick}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, DescribeStacksResult, Stack, StackStatus}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -120,7 +120,7 @@ class StackDeleteCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", Test
     this: StackDeleteCompleteMonitor =>
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def cloudFormationClient(credentials: AWSCredentials): AmazonCloudFormation = mockedClient
+    override def cloudFormationClient(credentials: AWSCredentialsProvider): AmazonCloudFormation = mockedClient
 
     override def scheduleTick() = context.system.scheduler.scheduleOnce(5.milliseconds, self, Tick)
   }

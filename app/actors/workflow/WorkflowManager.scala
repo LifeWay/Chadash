@@ -13,7 +13,7 @@ import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinish
 import actors.workflow.steps.ValidateAndFreezeSupervisor._
 import actors.workflow.steps._
 import akka.actor._
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.typesafe.config.ConfigFactory
 import play.api.libs.json.Json
 import utils.{ActorFactory, PropFactory}
@@ -265,8 +265,8 @@ object WorkflowManager extends PropFactory {
   sealed trait WorkflowData
   case object Uninitialized extends WorkflowData
   case class DeployData(deploy: Deploy) extends WorkflowData
-  case class DeployDataWithCreds(deploy: Deploy, creds: AWSCredentials) extends WorkflowData
-  case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentials,
+  case class DeployDataWithCreds(deploy: Deploy, creds: AWSCredentialsProvider) extends WorkflowData
+  case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentialsProvider,
                                           stepData: Map[String, String] = Map.empty[String, String]) extends WorkflowData
   case class DeleteData(stackName: String) extends WorkflowData
 

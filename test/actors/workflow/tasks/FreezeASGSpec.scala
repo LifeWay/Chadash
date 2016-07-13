@@ -4,7 +4,7 @@ import actors.WorkflowLog.LogMessage
 import actors.workflow.tasks.FreezeASG.{FreezeASGCommand, FreezeASGCompleted}
 import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
@@ -63,7 +63,7 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   val props = Props(new FreezeASG(null) {
     override def pauseTime(): FiniteDuration = 5.milliseconds
 
-    override def autoScalingClient(credentials: AWSCredentials): AmazonAutoScaling = mockedClient
+    override def autoScalingClient(credentials: AWSCredentialsProvider): AmazonAutoScaling = mockedClient
   })
 
   object TestActorFactory extends ActorFactory {

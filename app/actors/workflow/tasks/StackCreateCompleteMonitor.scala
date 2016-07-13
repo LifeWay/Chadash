@@ -3,7 +3,7 @@ package actors.workflow.tasks
 import actors.WorkflowLog.LogMessage
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
-import com.amazonaws.auth.AWSCredentials
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import play.api.Logger
 import utils.{AmazonCloudFormationService, PropFactory}
@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 
-class StackCreateCompleteMonitor(credentials: AWSCredentials, stackName: String) extends AWSRestartableActor
+class StackCreateCompleteMonitor(credentials: AWSCredentialsProvider, stackName: String) extends AWSRestartableActor
                                                                                          with AmazonCloudFormationService {
 
   import actors.workflow.tasks.StackCreateCompleteMonitor._
