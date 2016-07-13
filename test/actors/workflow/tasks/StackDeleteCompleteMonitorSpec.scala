@@ -10,14 +10,14 @@ import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, Descr
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class StackDeleteCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig))
-                                             with FlatSpecLike with Matchers with MockitoSugar {
+                                             with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient       = mock[AmazonCloudFormation]
   val deleteCompleteReq  = new DescribeStacksRequest().withStackName("delete-completed")
@@ -41,6 +41,10 @@ class StackDeleteCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", Test
   Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackBadStatusResp).when(mockedClient).describeStacks(stackBadTypeReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeStacks(awsFailReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(clientExceptionReq)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A StackDeleteComplete Monitor actor" should "send a delete complete message when the stack has reached DELETE_COMPLETE status" in {
     val props = Props(new StackDeleteCompleteMonitor(null, "delete-completed", "delete-completed") with Override)

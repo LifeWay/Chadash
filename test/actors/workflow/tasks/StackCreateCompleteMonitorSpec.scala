@@ -10,14 +10,14 @@ import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, Descr
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class StackCreateCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig))
-                                             with FlatSpecLike with Matchers with MockitoSugar {
+                                             with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient       = mock[AmazonCloudFormation]
   val createCompleteReq  = new DescribeStacksRequest().withStackName("create-completed")
@@ -43,6 +43,9 @@ class StackCreateCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", Test
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeStacks(awsFailReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(clientExceptionReq)
 
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A StackCreateComplete Monitor actor" should "send a create complete message when the stack has reached CREATE_COMPLETE status" in {
     val props = Props(new StackCreateCompleteMonitor(null, "create-completed") with Override)

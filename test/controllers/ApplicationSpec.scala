@@ -7,7 +7,7 @@ import akka.actor._
 import akka.testkit.TestKit
 import com.google.inject.{AbstractModule, Module}
 import global.AppGlobalSettings
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.scalatestplus.play.{OneServerPerSuite, WsScalaTestClient}
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WS, WSAuthScheme}
@@ -18,9 +18,13 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class ApplicationSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                             with Matchers with WsScalaTestClient with OneServerPerSuite {
+                              with Matchers with WsScalaTestClient with OneServerPerSuite with BeforeAndAfterAll {
 
   implicit override lazy val app: FakeApplication = FakeApplication(withGlobal = Some(TestGlobal))
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A Deployment API" should "start a workflow" in {
     val testURL = s"http://localhost:$port/api/deploy/workflow-started"

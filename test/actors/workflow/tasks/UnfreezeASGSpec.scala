@@ -10,13 +10,13 @@ import com.amazonaws.services.autoscaling.model.ResumeProcessesRequest
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class UnfreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers with MockitoSugar {
+                              with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient       = mock[AmazonAutoScaling]
   val successReq         = new ResumeProcessesRequest().withAutoScalingGroupName("success-req")
@@ -28,6 +28,10 @@ class UnfreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   Mockito.doNothing().when(mockedClient).resumeProcesses(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).resumeProcesses(failReq)
   Mockito.doThrow(new AmazonClientException("client-exception-req")).doNothing().when(mockedClient).resumeProcesses(clientExceptionReq)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A UnfreezeASG actor" should "unfreeze an ASG successfully" in {
     val probe = TestProbe()

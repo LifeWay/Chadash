@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/lifeway/Chadash.svg?branch=master)](https://travis-ci.org/lifeway/Chadash)
+
 # Chadash
 An immutable cloud deployer for AWS EC2 Instances. 
 

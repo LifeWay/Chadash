@@ -12,14 +12,14 @@ import com.amazonaws.services.s3.model.S3Object
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.{JsString, Json}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers with MockitoSugar {
+                              with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient    = mock[AmazonS3]
   val s3successObject = new S3Object()
@@ -35,6 +35,10 @@ class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   Mockito.doReturn(s3successObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success.json")
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-down.json")
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(s3restartObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-restart.json")
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A StackLoader actor" should "return a JSON value for a valid stack" in {
     val probe = TestProbe()

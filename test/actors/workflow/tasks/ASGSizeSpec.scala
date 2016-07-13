@@ -10,13 +10,13 @@ import com.amazonaws.services.autoscaling.model.{AutoScalingGroup, DescribeAutoS
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with
-                          Matchers with MockitoSugar {
+                          Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient         = mock[AmazonAutoScaling]
   val describeASGReq       = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
@@ -32,6 +32,10 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   Mockito.doNothing().when(mockedClient).setDesiredCapacity(desiredCapSetRequest)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeAutoScalingGroups(failReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(describeASGResult).when(mockedClient).describeAutoScalingGroups(clientExceptionReq)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "An ASGSize actor" should "return an ASG size response if an ASG is queried" in {
     val probe = TestProbe()

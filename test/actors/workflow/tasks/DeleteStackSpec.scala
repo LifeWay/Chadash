@@ -10,13 +10,13 @@ import com.amazonaws.services.cloudformation.model.DeleteStackRequest
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers with MockitoSugar {
+                              with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient       = mock[AmazonCloudFormation]
   val successReq         = new DeleteStackRequest().withStackName("delete-success")
@@ -28,6 +28,10 @@ class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   Mockito.doNothing().when(mockedClient).deleteStack(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).deleteStack(failReq)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).deleteStack(clientExceptionReq)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A DeleteStack actor" should "request to delete the stack and return a response" in {
     val probe = TestProbe()

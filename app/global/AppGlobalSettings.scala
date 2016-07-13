@@ -3,7 +3,7 @@ package global
 import actors.ChadashSystem
 import com.google.inject.{Guice, Module}
 import play.api.mvc.{EssentialAction, Filters}
-import play.api.{Application, GlobalSettings, Logger}
+import play.api.{Application, GlobalSettings, Logger, Mode}
 import play.filters.gzip.GzipFilter
 import play.filters.headers.SecurityHeadersFilter
 
@@ -19,7 +19,8 @@ trait AppGlobalSettings extends GlobalSettings {
 
   override def onStop(app: Application) {
     Logger.info("Application shutdown...")
-    ChadashSystem.system.shutdown()
+    if(app.mode != Mode.Test)
+      ChadashSystem.system.shutdown()
   }
 
   override def doFilter(next: EssentialAction): EssentialAction = {
