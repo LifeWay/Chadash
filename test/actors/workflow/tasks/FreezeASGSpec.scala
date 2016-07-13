@@ -10,7 +10,7 @@ import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.collection.JavaConverters._
@@ -18,7 +18,7 @@ import scala.concurrent.duration._
 
 class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
                             with Matchers
-                            with MockitoSugar {
+                            with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient = mock[AmazonAutoScaling]
   val successReq   = new SuspendProcessesRequest().withAutoScalingGroupName("freeze-success").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
@@ -30,6 +30,10 @@ class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   Mockito.doNothing().when(mockedClient).suspendProcesses(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).suspendProcesses(reqFail)
   Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).suspendProcesses(reqClientExc)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A FreezeASG actor" should " return a freeze completed response if successful" in {
     val probe = TestProbe()

@@ -10,13 +10,13 @@ import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils._
 
 import scala.concurrent.duration._
 
 class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with Matchers
-                          with MockitoSugar {
+                          with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient            = mock[AmazonAutoScaling]
   val describeASGRequest      = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
@@ -29,6 +29,10 @@ class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGRequest)).thenReturn(describeASGResult)
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqFail)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReqClientExc)).thenThrow(new AmazonClientException("connection problems")).thenReturn(describeASGResult)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "An ASGInfo fetcher" should "return a valid response if AWS is up" in {
     val probe = TestProbe()

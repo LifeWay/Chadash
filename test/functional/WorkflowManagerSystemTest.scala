@@ -21,7 +21,7 @@ import com.amazonaws.services.s3.AmazonS3
 import com.amazonaws.services.s3.model.S3Object
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.{JsString, Json}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
@@ -30,9 +30,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                                        with Matchers {
+                                        with Matchers with BeforeAndAfterAll {
 
   import functional.WorkflowManagerSystemTest._
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A WorkflowManager Supervisor" should "complete a new stack workflow deploy" in {
     val sendingProbe = TestProbe()

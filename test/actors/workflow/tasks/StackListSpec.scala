@@ -11,13 +11,13 @@ import com.amazonaws.services.cloudformation.model.{ListStacksRequest, ListStack
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                            with Matchers with MockitoSugar {
+                            with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient          = mock[AmazonCloudFormation]
   val failMockedClient      = mock[AmazonCloudFormation]
@@ -31,6 +31,9 @@ class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   .doReturn(successResp)
   .when(mockedClient).listStacks(req)
 
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A StackList actor" should "retrieve filtered stacks" in {
     val probe = TestProbe()

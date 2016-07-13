@@ -10,13 +10,13 @@ import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealth
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig))
-                                           with FlatSpecLike with Matchers with MockitoSugar {
+                                           with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient             = mock[AmazonElasticLoadBalancing]
   val instance                 = new Instance("instance-1")
@@ -35,6 +35,10 @@ class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestCo
   Mockito.when(mockedClient.describeInstanceHealth(successReqNotAllHealthy)).thenReturn(successResultNotHealthy)
   Mockito.when(mockedClient.describeInstanceHealth(failReq)).thenThrow(new AmazonServiceException("failed"))
   Mockito.when(mockedClient.describeInstanceHealth(clientExceptionReq)).thenThrow(new AmazonClientException("connection problems")).thenReturn(successResultAllHealthy)
+
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A ELBHealthInstanceChecker actor" should "return an all healthy message if all instance are healthy" in {
     val probe = TestProbe()

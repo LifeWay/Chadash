@@ -11,14 +11,14 @@ import com.amazonaws.services.cloudformation.model.{Capability, CreateStackReque
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.Json
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                               with Matchers with MockitoSugar {
+                               with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient  = mock[AmazonCloudFormation]
   val appVersionTag = new Tag().withKey("ApplicationVersion").withValue("1.0")
@@ -36,6 +36,9 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).createStack(reqFail)
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(null).when(mockedClient).createStack(reqClientExc)
 
+  override def afterAll {
+    TestKit.shutdownActorSystem(system)
+  }
 
   "A stack creator actor" should "return a stack create request completed if successful" in {
     val probe = TestProbe()
