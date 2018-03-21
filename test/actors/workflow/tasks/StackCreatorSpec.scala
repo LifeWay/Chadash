@@ -7,7 +7,8 @@ import akka.actor.{ActorRef, ActorRefFactory, ActorSystem, Props}
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
-import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter, Tag}
+import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter}
+import com.amazonaws.services.cloudformation.model.{Tag => AWSTag}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
@@ -21,18 +22,21 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
                                with Matchers with MockitoSugar with BeforeAndAfterAll {
 
   val mockedClient  = mock[AmazonCloudFormation]
-  val appVersionTag = new Tag().withKey("ApplicationVersion").withValue("1.0")
+  val appVersionTag = new AWSTag().withKey("ApplicationVersion").withValue("1.0")
+  val projectTag = new AWSTag().withKey("Project").withValue("Chadash")
   val params        = Seq(
     new Parameter().withParameterKey("ImageId").withParameterValue("image-id"),
     new Parameter().withParameterKey("ApplicationVersion").withParameterValue("1.0")
   )
   val successReq    = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("success-stack")
+  val successReqWithTags = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag, projectTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("success-stack")
   val reqFail       = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("fail-stack")
   val reqClientExc  = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("client-exception")
 
   //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
   Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(org.mockito.Matchers.anyObject())
   Mockito.doReturn(null).when(mockedClient).createStack(successReq)
+  Mockito.doReturn(null).when(mockedClient).createStack(successReqWithTags)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).createStack(reqFail)
   Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(null).when(mockedClient).createStack(reqClientExc)
 
@@ -44,7 +48,15 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("success-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("success-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody"), None))
+    probe.expectMsg(StackCreateRequestCompleted)
+  }
+
+  it should "return a stack create request completed if successful with tags" in {
+    val probe = TestProbe()
+    val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
+
+    probe.send(proxy, StackCreateCommand("success-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody"), Some(Seq(Tag("Project", "Chadash")))))
     probe.expectMsg(StackCreateRequestCompleted)
   }
 
@@ -52,7 +64,7 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("fail-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("fail-stack", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody"), None))
     val msg = probe.expectMsgClass(classOf[LogMessage])
     msg.message should include("AmazonServiceException")
   }
@@ -61,7 +73,7 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
     val probe = TestProbe()
     val proxy = TaskProxyBuilder(probe, StackCreator, system, TestActorFactory)
 
-    probe.send(proxy, StackCreateCommand("client-exception", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody")))
+    probe.send(proxy, StackCreateCommand("client-exception", "image-id", DeploymentSupervisor.buildVersion("1.0"), Json.obj("someObject" -> "someBody"), None))
     probe.expectMsg(StackCreateRequestCompleted)
   }
 
