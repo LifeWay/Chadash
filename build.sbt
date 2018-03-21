@@ -1,6 +1,6 @@
 name := "chadash"
 version := scala.util.Properties.envOrElse("BUILD_VERSION", "DEV")
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.12"
 scalacOptions ++= Seq("-feature", "-target:jvm-1.8")
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala).settings(
