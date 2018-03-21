@@ -2,13 +2,13 @@ package actors.workflow.steps
 
 import actors.WorkflowLog.{Log, LogMessage}
 import actors.workflow.steps.LoadStackSupervisor.{LoadStackData, LoadStackStates}
-import actors.workflow.tasks.StackLoader
+import actors.workflow.tasks.{StackLoader, Tag}
 import actors.workflow.tasks.StackLoader.{LoadStack, StackLoaded}
 import actors.workflow.{AWSSupervisorStrategy, WorkflowManager}
 import akka.actor._
 import com.amazonaws.auth.AWSCredentialsProvider
 import play.api.libs.json.JsValue
-import utils.{PropFactory, ActorFactory}
+import utils.{ActorFactory, PropFactory}
 
 class LoadStackSupervisor(credentials: AWSCredentialsProvider,
                           actorFactory: ActorFactory) extends FSM[LoadStackStates, LoadStackData] with ActorLogging
@@ -27,10 +27,10 @@ class LoadStackSupervisor(credentials: AWSCredentialsProvider,
   }
 
   when(AwaitingStackData) {
-    case Event(StackLoaded(data), _) =>
+    case Event(StackLoaded(data, tags), _) =>
       context.unwatch(sender())
       context.stop(sender())
-      context.parent ! LoadStackResponse(data)
+      context.parent ! LoadStackResponse(data, tags)
       stop()
   }
 
@@ -61,7 +61,7 @@ object LoadStackSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait LoadStackMessage
   case class LoadStackCommand(bucketName: String, stackPath: String)
-  case class LoadStackResponse(stackData: JsValue)
+  case class LoadStackResponse(stackData: JsValue, tags: Option[Seq[Tag]])
 
   //FSM: States
   sealed trait LoadStackStates

@@ -18,7 +18,7 @@ import com.amazonaws.services.cloudformation.model.{Tag, _}
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, DescribeInstanceHealthResult, Instance, InstanceState}
 import com.amazonaws.services.s3.AmazonS3
-import com.amazonaws.services.s3.model.S3Object
+import com.amazonaws.services.s3.model.{AmazonS3Exception, S3Object}
 import org.mockito.Mockito
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
@@ -59,7 +59,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     sendingProbe.expectMsg(WorkflowCompleted)
   }
 
-  it should "complete a upgrade stack workflow when the transition is valid with no new ASG resizing" in {
+  it should "complete a upgrade stack workflow when the transition is valid with no new ASG resizing with extra tags" in {
     val sendingProbe = TestProbe()
     val loggingProbe = TestProbe()
 
@@ -260,6 +260,16 @@ object WorkflowManagerSystemTest {
       updateObject.setKey("chadash-stacks/updatestack/somename.json")
       updateObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
+      val updateObjectTags = new S3Object()
+      updateObjectTags.setBucketName("test-bucket-name")
+      updateObjectTags.setKey("chadash-stacks/updatestack/somename.tags.json")
+      updateObjectTags.setObjectContent(new ByteArrayInputStream(
+        Json.arr(
+          Json.obj("Key" -> JsString("Project"), "Value" -> JsString("Chadash")),
+          Json.obj("Key" -> JsString("Owner"), "Value" -> JsString("LifeWay"))
+        ).toString().getBytes("UTF-8")
+      ))
+
       val updateObject2 = new S3Object()
       updateObject2.setBucketName("test-bucket-name")
       updateObject2.setKey("chadash-stacks/updatestack/growstack.json")
@@ -271,9 +281,13 @@ object WorkflowManagerSystemTest {
       existingObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
       Mockito.doReturn(s3successObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.tags.json")
       Mockito.doReturn(updateObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.json")
+      Mockito.doReturn(updateObjectTags).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.tags.json")
       Mockito.doReturn(updateObject2).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/growstack.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/growstack.tags.json")
       Mockito.doReturn(existingObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.tags.json")
 
       val props = Props(new StackLoader(null, "test-bucket-name") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -311,7 +325,9 @@ object WorkflowManagerSystemTest {
 
       val updateAppVersionTags = Seq(
         new Tag().withKey("ApplicationVersion").withValue("1.1"),
-        new Tag().withKey("StackVersion").withValue("20")
+        new Tag().withKey("StackVersion").withValue("20"),
+        new Tag().withKey("Project").withValue("Chadash"),
+        new Tag().withKey("Owner").withValue("LifeWay")
       )
       val updateParams        = Seq(
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
