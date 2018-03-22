@@ -9,16 +9,15 @@ import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, DescribeStacksResult, Output, Stack}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class StackInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                            with Matchers with MockitoSugar with BeforeAndAfterAll {
+                            with Matchers with BeforeAndAfterAll {
 
-  val mockedClient       = mock[AmazonCloudFormation]
+  val mockedClient       = Mockito.mock(classOf[AmazonCloudFormation])
   val asgSuccessReq      = new DescribeStacksRequest().withStackName("asg-name-query")
   val idSuccessReq       = new DescribeStacksRequest().withStackName("stack-id-query")
   val failReq            = new DescribeStacksRequest().withStackName("expect-fail")
@@ -30,10 +29,10 @@ class StackInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.tes
   val idSuccessResult    = new DescribeStacksResult().withStacks(idStack)
 
 
-  Mockito.doReturn(asgSuccessResult).when(mockedClient).describeStacks(asgSuccessReq)
-  Mockito.doReturn(idSuccessResult).when(mockedClient).describeStacks(idSuccessReq)
+  Mockito.doReturn(asgSuccessResult, Nil: _*).when(mockedClient).describeStacks(asgSuccessReq)
+  Mockito.doReturn(idSuccessResult, Nil: _*).when(mockedClient).describeStacks(idSuccessReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeStacks(failReq)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(idSuccessResult).when(mockedClient).describeStacks(clientExceptionReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(idSuccessResult, Nil: _*).when(mockedClient).describeStacks(clientExceptionReq)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)

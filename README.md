@@ -456,7 +456,7 @@ To do this we've authored an overly simple app that makes the API call for your 
 
 This software is licensed under the Apache 2 license, quoted below.
 
-Copyright (C) 2014-2016 LifeWay Christian Resources. (https://www.lifeway.com).
+Copyright (C) 2014-2018 LifeWay Christian Resources. (https://www.lifeway.com).
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this project except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0.
 

@@ -6,19 +6,19 @@ import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
-import com.amazonaws.services.autoscaling.model.{AutoScalingGroup, DescribeAutoScalingGroupsRequest, DescribeAutoScalingGroupsResult, SetDesiredCapacityRequest}
+import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
+import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with
-                          Matchers with MockitoSugar with BeforeAndAfterAll {
+                          Matchers with BeforeAndAfterAll {
 
-  val mockedClient         = mock[AmazonAutoScaling]
+  val mockedClient         = Mockito.mock(classOf[AmazonAutoScaling])
   val describeASGReq       = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
   val failReq              = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("expect-fail")
   val clientExceptionReq   = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
@@ -26,12 +26,11 @@ class ASGSizeSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testC
   val describeASGResult    = new DescribeAutoScalingGroupsResult().withAutoScalingGroups(asg)
   val desiredCapSetRequest = new SetDesiredCapacityRequest().withAutoScalingGroupName("resize-asg-name").withDesiredCapacity(5)
 
-
-  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).setDesiredCapacity(org.mockito.Matchers.anyObject())
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).setDesiredCapacity(ArgumentMatchers.any())
   Mockito.when(mockedClient.describeAutoScalingGroups(describeASGReq)).thenReturn(describeASGResult)
-  Mockito.doNothing().when(mockedClient).setDesiredCapacity(desiredCapSetRequest)
+  Mockito.doReturn(new SetDesiredCapacityResult(), Nil: _*).when(mockedClient).setDesiredCapacity(desiredCapSetRequest)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeAutoScalingGroups(failReq)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(describeASGResult).when(mockedClient).describeAutoScalingGroups(clientExceptionReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(describeASGResult, Nil: _*).when(mockedClient).describeAutoScalingGroups(clientExceptionReq)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)

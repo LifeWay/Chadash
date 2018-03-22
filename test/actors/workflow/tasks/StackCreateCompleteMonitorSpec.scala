@@ -8,7 +8,7 @@ import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, DescribeStacksResult, Stack, StackStatus}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
-import org.mockito.Mockito
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
@@ -17,9 +17,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class StackCreateCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig))
-                                             with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
+                                             with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  val mockedClient       = mock[AmazonCloudFormation]
+  val mockedClient       = Mockito.mock(classOf[AmazonCloudFormation])
   val createCompleteReq  = new DescribeStacksRequest().withStackName("create-completed")
   val createCompleteReq2 = new DescribeStacksRequest().withStackName("create-completed-2")
   val stackFailReq       = new DescribeStacksRequest().withStackName("stack-fail")
@@ -36,12 +36,13 @@ class StackCreateCompleteMonitorSpec extends TestKit(ActorSystem("TestKit", Test
   val stackBadStatusResp = new DescribeStacksResult().withStacks(stackBadStatus)
 
 
-  Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(createCompleteReq)
-  Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(createCompleteReq2)
-  Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackFailedResp).when(mockedClient).describeStacks(stackFailReq)
-  Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackBadStatusResp).when(mockedClient).describeStacks(stackBadTypeReq)
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).describeStacks(ArgumentMatchers.any())
+  Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(createCompleteReq)
+  Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(createCompleteReq2)
+  Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackFailedResp, Nil: _*).when(mockedClient).describeStacks(stackFailReq)
+  Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackBadStatusResp, Nil: _*).when(mockedClient).describeStacks(stackBadTypeReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).describeStacks(awsFailReq)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(clientExceptionReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(clientExceptionReq)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)

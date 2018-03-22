@@ -52,7 +52,7 @@ class AmazonCredentials extends Actor with ActorLogging {
       val provider: AWSCredentialsProvider = credentialsProvider match {
         case "DefaultAWSCredentialsProviderChain" => new DefaultAWSCredentialsProviderChain()
         case "TypesafeConfigAWSCredentialsProvider" => new TypesafeConfigAWSCredentialsProvider(config)
-        case "InstanceProfileCredentialsProvider" => new InstanceProfileCredentialsProvider()
+        case "InstanceProfileCredentialsProvider" => InstanceProfileCredentialsProvider.getInstance()
         case "ClasspathPropertiesFileCredentialsProvider" => new ClasspathPropertiesFileCredentialsProvider()
         case "EnvironmentVariableCredentialsProvider" => new EnvironmentVariableCredentialsProvider()
         case "SystemPropertiesCredentialsProvider" => new SystemPropertiesCredentialsProvider()

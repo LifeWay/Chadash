@@ -10,8 +10,7 @@ import com.amazonaws.services.cloudformation.AmazonCloudFormation
 import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter}
 import com.amazonaws.services.cloudformation.model.{Tag => AWSTag}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
-import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.Json
 import utils.{ActorFactory, PropFactory, TestConfiguration}
@@ -19,9 +18,9 @@ import utils.{ActorFactory, PropFactory, TestConfiguration}
 import scala.concurrent.duration._
 
 class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                               with Matchers with MockitoSugar with BeforeAndAfterAll {
+                               with Matchers with BeforeAndAfterAll {
 
-  val mockedClient  = mock[AmazonCloudFormation]
+  val mockedClient  = Mockito.mock(classOf[AmazonCloudFormation])
   val appVersionTag = new AWSTag().withKey("ApplicationVersion").withValue("1.0")
   val projectTag = new AWSTag().withKey("Project").withValue("Chadash")
   val params        = Seq(
@@ -34,11 +33,11 @@ class StackCreatorSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.
   val reqClientExc  = new CreateStackRequest().withTemplateBody(Json.obj("someObject" -> "someBody").toString()).withTags(appVersionTag).withParameters(params: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("client-exception")
 
   //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
-  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(org.mockito.Matchers.anyObject())
-  Mockito.doReturn(null).when(mockedClient).createStack(successReq)
-  Mockito.doReturn(null).when(mockedClient).createStack(successReqWithTags)
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(ArgumentMatchers.any())
+  Mockito.doReturn(null, Nil: _*).when(mockedClient).createStack(successReq)
+  Mockito.doReturn(null, Nil: _*).when(mockedClient).createStack(successReqWithTags)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).createStack(reqFail)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(null).when(mockedClient).createStack(reqClientExc)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(null, Nil: _*).when(mockedClient).createStack(reqClientExc)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)

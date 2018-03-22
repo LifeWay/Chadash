@@ -10,25 +10,24 @@ import com.amazonaws.services.cloudformation.model.StackStatus._
 import com.amazonaws.services.cloudformation.model.{ListStacksRequest, ListStacksResult, StackSummary}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class StackListSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                            with Matchers with MockitoSugar with BeforeAndAfterAll {
+                            with Matchers with BeforeAndAfterAll {
 
-  val mockedClient          = mock[AmazonCloudFormation]
-  val failMockedClient      = mock[AmazonCloudFormation]
+  val mockedClient          = Mockito.mock(classOf[AmazonCloudFormation])
+  val failMockedClient      = Mockito.mock(classOf[AmazonCloudFormation])
   val req                   = new ListStacksRequest().withStackStatusFilters(actors.workflow.tasks.StackList.stackStatusFilters: _*)
   val successStackSummaries = Seq(new StackSummary().withStackName("some-stack-id-1"), new StackSummary().withStackName("some-stack-id-2"))
   val successResp           = new ListStacksResult().withStackSummaries(successStackSummaries: _*)
 
   Mockito.doThrow(new AmazonServiceException("failed")).when(failMockedClient).listStacks(req)
-  Mockito.doReturn(successResp)
+  Mockito.doReturn(successResp, Nil: _*)
   .doThrow(new AmazonClientException("connection problems"))
-  .doReturn(successResp)
+  .doReturn(successResp, Nil: _*)
   .when(mockedClient).listStacks(req)
 
   override def afterAll {

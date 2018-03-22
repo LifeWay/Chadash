@@ -11,7 +11,6 @@ import com.amazonaws.services.s3.AmazonS3
 import com.amazonaws.services.s3.model.{AmazonS3Exception, S3Object}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.{JsString, Json}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
@@ -19,9 +18,9 @@ import utils.{ActorFactory, PropFactory, TestConfiguration}
 import scala.concurrent.duration._
 
 class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers with MockitoSugar with BeforeAndAfterAll {
+                              with Matchers with BeforeAndAfterAll {
 
-  val mockedClient    = mock[AmazonS3]
+  val mockedClient    = Mockito.mock(classOf[AmazonS3])
   val s3successObject = new S3Object()
   s3successObject.setBucketName("test-bucket-name")
   s3successObject.setKey("chadash-stacks/test-success.json")
@@ -47,12 +46,12 @@ class StackLoaderSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.t
   s3restartObject.setKey("chadash-stacks/test-aws-restart.json")
   s3restartObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
-  Mockito.doReturn(s3successObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success.json")
+  Mockito.doReturn(s3successObject, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success.json")
   Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success.tags.json")
-  Mockito.doReturn(s3successObjectWithTags).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success-with-tags.json")
-  Mockito.doReturn(s3successTags).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success-with-tags.tags.json")
+  Mockito.doReturn(s3successObjectWithTags, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success-with-tags.json")
+  Mockito.doReturn(s3successTags, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-success-with-tags.tags.json")
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-down.json")
-  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(s3restartObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-restart.json")
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(s3restartObject, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-restart.json")
   Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/test-aws-restart.tags.json")
 
   override def afterAll {

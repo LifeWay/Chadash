@@ -9,16 +9,15 @@ import com.amazonaws.services.autoscaling.AmazonAutoScaling
 import com.amazonaws.services.autoscaling.model._
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils._
 
 import scala.concurrent.duration._
 
 class ASGInfoSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike with Matchers
-                          with MockitoSugar with BeforeAndAfterAll {
+               with BeforeAndAfterAll {
 
-  val mockedClient            = mock[AmazonAutoScaling]
+  val mockedClient            = Mockito.mock(classOf[AmazonAutoScaling])
   val describeASGRequest      = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("test-asg-name")
   val describeASGReqFail      = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("expect-fail")
   val describeASGReqClientExc = new DescribeAutoScalingGroupsRequest().withAutoScalingGroupNames("client-exception")
