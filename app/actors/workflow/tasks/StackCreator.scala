@@ -4,7 +4,8 @@ import actors.DeploymentSupervisor.{StackAndAppVersion, AppVersion, Version}
 import actors.workflow.AWSRestartableActor
 import akka.actor.Props
 import com.amazonaws.auth.AWSCredentialsProvider
-import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter, Tag}
+import com.amazonaws.services.cloudformation.model.{Capability, CreateStackRequest, Parameter}
+import com.amazonaws.services.cloudformation.model.{Tag => AWSTag}
 import play.api.libs.json.JsValue
 import utils.{AmazonCloudFormationService, PropFactory}
 
@@ -14,14 +15,16 @@ class StackCreator(credentials: AWSCredentialsProvider) extends AWSRestartableAc
 
   override def receive: Receive = {
     case launchCommand: StackCreateCommand =>
-      val appVersionTag = new Tag()
+      val appVersionTag = new AWSTag()
                           .withKey("ApplicationVersion")
                           .withValue(launchCommand.version.appVersion)
 
-      val tags = launchCommand.version match {
-        case x:AppVersion => Seq(appVersionTag)
-        case x:StackAndAppVersion => Seq(appVersionTag, new Tag().withKey("StackVersion").withValue(x.stackVersion))
-      }
+      val additionalTags: Seq[AWSTag] = launchCommand.tags.getOrElse(Seq.empty[Tag]).map(t => new AWSTag().withKey(t.key).withValue(t.value))
+
+      val tags = (launchCommand.version match {
+        case _:AppVersion => Seq(appVersionTag)
+        case x:StackAndAppVersion => Seq(appVersionTag, new AWSTag().withKey("StackVersion").withValue(x.stackVersion))
+      }) ++ additionalTags
 
       val params = Seq(
         new Parameter()
@@ -47,7 +50,7 @@ class StackCreator(credentials: AWSCredentialsProvider) extends AWSRestartableAc
 }
 
 object StackCreator extends PropFactory {
-  case class StackCreateCommand(stackName: String, imageId: String, version: Version, stackData: JsValue)
+  case class StackCreateCommand(stackName: String, imageId: String, version: Version, stackData: JsValue, tags: Option[Seq[Tag]])
   case object StackCreateRequestCompleted
 
   override def props(args: Any*): Props = Props(classOf[StackCreator], args: _*)

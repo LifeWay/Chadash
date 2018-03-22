@@ -6,28 +6,28 @@ import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.cloudformation.AmazonCloudFormation
-import com.amazonaws.services.cloudformation.model.DeleteStackRequest
+import com.amazonaws.services.cloudformation.model.{DeleteStackRequest, DeleteStackResult}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
+import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class DeleteStackSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                              with Matchers with MockitoSugar with BeforeAndAfterAll {
+                              with Matchers with BeforeAndAfterAll {
 
-  val mockedClient       = mock[AmazonCloudFormation]
+  val mockedClient       = Mockito.mock(classOf[AmazonCloudFormation])
   val successReq         = new DeleteStackRequest().withStackName("delete-success")
   val failReq            = new DeleteStackRequest().withStackName("fail-stack")
   val clientExceptionReq = new DeleteStackRequest().withStackName("client-exception-stack")
 
   //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
-  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(org.mockito.Matchers.anyObject())
-  Mockito.doNothing().when(mockedClient).deleteStack(successReq)
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(ArgumentMatchers.any())
+  Mockito.doReturn(new DeleteStackResult(), Nil: _*).when(mockedClient).deleteStack(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).deleteStack(failReq)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).deleteStack(clientExceptionReq)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(new DeleteStackResult(), Nil: _*).when(mockedClient).deleteStack(clientExceptionReq)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)

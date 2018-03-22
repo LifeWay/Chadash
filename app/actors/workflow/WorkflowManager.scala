@@ -12,6 +12,7 @@ import actors.workflow.steps.RollBackStackSupervisor.{RollBackCompleted, RollBac
 import actors.workflow.steps.TearDownSupervisor.{TearDownCommand, TearDownFinished}
 import actors.workflow.steps.ValidateAndFreezeSupervisor._
 import actors.workflow.steps._
+import actors.workflow.tasks.Tag
 import akka.actor._
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.typesafe.config.ConfigFactory
@@ -69,7 +70,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   }
 
   when(AwaitingLoadStackResponse) {
-    case Event(LoadStackResponse(stackJson), DeployDataWithCreds(data, creds)) =>
+    case Event(LoadStackResponse(stackJson, tags), DeployDataWithCreds(data, creds)) =>
       context.unwatch(sender())
       logActor ! LogMessage("Stack JSON data loaded. Querying for existing stack")
 
@@ -77,7 +78,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       val validateAndFreezeSupervisor = actorFactory(ValidateAndFreezeSupervisor, context, "validateAndFreezeSupervisor", creds, actorFactory)
       context.watch(validateAndFreezeSupervisor)
       validateAndFreezeSupervisor ! ValidateAndFreezeStackCommand(data.stackPath, data.version)
-      goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData)
+      goto(AwaitingStackVerifier) using DeployDataWithCredsWithSteps(data, creds, stepData, tags)
   }
 
   when(AwaitingDeleteStackResponse) {
@@ -91,7 +92,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   }
 
   when(AwaitingStackVerifier) {
-    case Event(NoExistingStacksExist, DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+    case Event(NoExistingStacksExist, DeployDataWithCredsWithSteps(data, creds, stepData, tags)) =>
       context.unwatch(sender())
       logActor ! LogMessage("No existing stacks found. First-time stack launch")
 
@@ -99,12 +100,12 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          stackLauncher ! NewStackFirstLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile))
+          stackLauncher ! NewStackFirstLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile), tags)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
       goto(AwaitingStackLaunched)
 
-    case Event(VerifiedAndStackFrozen(oldStackName, oldASGName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+    case Event(VerifiedAndStackFrozen(oldStackName, oldASGName), DeployDataWithCredsWithSteps(data, creds, stepData, tags)) =>
       context.unwatch(sender())
 
       val newStepData = stepData + ("oldStackName" -> oldStackName) + ("oldAsgName" -> oldASGName)
@@ -112,12 +113,12 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
       context.watch(stackLauncher)
       stepData.get("stackFileContents") match {
         case Some(stackFile) =>
-          stackLauncher ! NewStackUpgradeLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile), oldStackName, oldASGName)
+          stackLauncher ! NewStackUpgradeLaunchCommand(data.stackName, data.amiId, data.version, Json.parse(stackFile), tags, oldStackName, oldASGName)
         case None => throw new Exception("No stack contents found when attempting to deploy")
       }
       goto(AwaitingStackLaunched) using DeployDataWithCredsWithSteps(data, creds, newStepData)
 
-    case Event(StackVersionAlreadyExists, DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+    case Event(StackVersionAlreadyExists, DeployDataWithCredsWithSteps(data, creds, stepData, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage("Workflow is being stopped - you are trying to redeploy an existing stack version")
       failed()
@@ -125,14 +126,14 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   }
 
   when(AwaitingStackLaunched) {
-    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_, _, _)) =>
+    case Event(FirstStackLaunchCompleted(newStackName), DeployDataWithCredsWithSteps(_, _, _, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage(s"The first version of this stack has been successfully deployed. Stack Name: $newStackName")
       logActor ! WorkflowLog.WorkflowCompleted
       context.parent ! WorkflowCompleted
       stop()
 
-    case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData)) =>
+    case Event(StackUpgradeLaunchCompleted(newAsgName), DeployDataWithCredsWithSteps(data, creds, stepData, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage("The next version of the stack has been successfully deployed.")
       val tearDownSupervisor = actorFactory(TearDownSupervisor, context, "tearDownSupervisor", creds, actorFactory)
@@ -158,7 +159,7 @@ class WorkflowManager(logActor: ActorRef, actorFactory: ActorFactory) extends FS
   }
 
   when(AwaitingOldStackTearDown) {
-    case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _)) =>
+    case Event(TearDownFinished, DeployDataWithCredsWithSteps(_, _, _, _)) =>
       context.unwatch(sender())
       logActor ! LogMessage("The old stack has been deleted and the new stack's ASG has been unfrozen.")
       logActor ! WorkflowLog.WorkflowCompleted
@@ -267,7 +268,7 @@ object WorkflowManager extends PropFactory {
   case class DeployData(deploy: Deploy) extends WorkflowData
   case class DeployDataWithCreds(deploy: Deploy, creds: AWSCredentialsProvider) extends WorkflowData
   case class DeployDataWithCredsWithSteps(deploy: Deploy, creds: AWSCredentialsProvider,
-                                          stepData: Map[String, String] = Map.empty[String, String]) extends WorkflowData
+                                          stepData: Map[String, String] = Map.empty[String, String], tags: Option[Seq[Tag]] = None) extends WorkflowData
   case class DeleteData(stackName: String) extends WorkflowData
 
   def props(args: Any*): Props = Props(classOf[WorkflowManager], args: _*)

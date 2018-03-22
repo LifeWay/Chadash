@@ -18,8 +18,8 @@ import com.amazonaws.services.cloudformation.model.{Tag, _}
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, DescribeInstanceHealthResult, Instance, InstanceState}
 import com.amazonaws.services.s3.AmazonS3
-import com.amazonaws.services.s3.model.S3Object
-import org.mockito.Mockito
+import com.amazonaws.services.s3.model.{AmazonS3Exception, S3Object}
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import play.api.libs.json.{JsString, Json}
@@ -59,7 +59,7 @@ class WorkflowManagerSystemTest extends TestKit(ActorSystem("TestKit", TestConfi
     sendingProbe.expectMsg(WorkflowCompleted)
   }
 
-  it should "complete a upgrade stack workflow when the transition is valid with no new ASG resizing" in {
+  it should "complete a upgrade stack workflow when the transition is valid with no new ASG resizing with extra tags" in {
     val sendingProbe = TestProbe()
     val loggingProbe = TestProbe()
 
@@ -260,6 +260,16 @@ object WorkflowManagerSystemTest {
       updateObject.setKey("chadash-stacks/updatestack/somename.json")
       updateObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
+      val updateObjectTags = new S3Object()
+      updateObjectTags.setBucketName("test-bucket-name")
+      updateObjectTags.setKey("chadash-stacks/updatestack/somename.tags.json")
+      updateObjectTags.setObjectContent(new ByteArrayInputStream(
+        Json.arr(
+          Json.obj("Key" -> JsString("Project"), "Value" -> JsString("Chadash")),
+          Json.obj("Key" -> JsString("Owner"), "Value" -> JsString("LifeWay"))
+        ).toString().getBytes("UTF-8")
+      ))
+
       val updateObject2 = new S3Object()
       updateObject2.setBucketName("test-bucket-name")
       updateObject2.setKey("chadash-stacks/updatestack/growstack.json")
@@ -270,10 +280,14 @@ object WorkflowManagerSystemTest {
       existingObject.setKey("chadash-stacks/existingstack/somename.json")
       existingObject.setObjectContent(new ByteArrayInputStream(Json.obj("test" -> JsString("success")).toString().getBytes("UTF-8")))
 
-      Mockito.doReturn(s3successObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.json")
-      Mockito.doReturn(updateObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.json")
-      Mockito.doReturn(updateObject2).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/growstack.json")
-      Mockito.doReturn(existingObject).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.json")
+      Mockito.doReturn(s3successObject, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/newstack/somename.tags.json")
+      Mockito.doReturn(updateObject, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.json")
+      Mockito.doReturn(updateObjectTags, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/somename.tags.json")
+      Mockito.doReturn(updateObject2, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/growstack.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/updatestack/growstack.tags.json")
+      Mockito.doReturn(existingObject, Nil: _*).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.json")
+      Mockito.doThrow(new AmazonS3Exception("not found")).when(mockedClient).getObject("test-bucket-name", "chadash-stacks/existingstack/somename.tags.json")
 
       val props = Props(new StackLoader(null, "test-bucket-name") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -289,8 +303,8 @@ object WorkflowManagerSystemTest {
       val successStackSummaries = Seq(new StackSummary().withStackName("chadash-updatestack-somename-v1-0"), new StackSummary().withStackName("chadash-updatestack-growstack-v1-1"),  new StackSummary().withStackName("other-stack-name"))
       val successResp           = new ListStacksResult().withStackSummaries(successStackSummaries: _*)
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).listStacks(org.mockito.Matchers.anyObject())
-      Mockito.doReturn(successResp).when(mockedClient).listStacks(req)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).listStacks(ArgumentMatchers.any())
+      Mockito.doReturn(successResp, Nil: _*).when(mockedClient).listStacks(req)
 
       val props = Props(new StackList(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -311,7 +325,9 @@ object WorkflowManagerSystemTest {
 
       val updateAppVersionTags = Seq(
         new Tag().withKey("ApplicationVersion").withValue("1.1"),
-        new Tag().withKey("StackVersion").withValue("20")
+        new Tag().withKey("StackVersion").withValue("20"),
+        new Tag().withKey("Project").withValue("Chadash"),
+        new Tag().withKey("Owner").withValue("LifeWay")
       )
       val updateParams        = Seq(
         new Parameter().withParameterKey("ImageId").withParameterValue("test-ami"),
@@ -328,10 +344,10 @@ object WorkflowManagerSystemTest {
       val growReq           = new CreateStackRequest().withTemplateBody(Json.obj("test" -> "success").toString()).withTags(growAppVersionTag).withParameters(growParams: _*).withCapabilities(Capability.CAPABILITY_IAM).withStackName("chadash-updatestack-growstack-v1-2")
 
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(org.mockito.Matchers.anyObject())
-      Mockito.doReturn(null).when(mockedClient).createStack(successReq)
-      Mockito.doReturn(null).when(mockedClient).createStack(updateReq)
-      Mockito.doReturn(null).when(mockedClient).createStack(growReq)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).createStack(ArgumentMatchers.any())
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).createStack(successReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).createStack(updateReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).createStack(growReq)
 
       val props = Props(new StackCreator(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -350,9 +366,9 @@ object WorkflowManagerSystemTest {
       val stackPendingResp        = new DescribeStacksResult().withStacks(stackPending)
       val stackCompleteResp       = new DescribeStacksResult().withStacks(stackComplete)
 
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(createCompleteReq)
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(createCompleteUpdateReq)
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(growCompleteUpdateReq)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(createCompleteReq)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(createCompleteUpdateReq)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(growCompleteUpdateReq)
 
       val props = Props(new StackCreateCompleteMonitor(null, "chadash-newstack-somename-v1-0") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -416,11 +432,11 @@ object WorkflowManagerSystemTest {
       val deleteStackIdResult = new DescribeStacksResult().withStacks(deleteStackId)
 
 
-      Mockito.doReturn(asgSuccessResult).doReturn(idSuccessResult).doReturn(growIdSuccessResult).when(mockedClient).describeStacks(successReq)
-      Mockito.doReturn(deleteStackIdResult).when(mockedClient).describeStacks(deleteReq)
-      Mockito.doReturn(asgUpdateResult).when(mockedClient).describeStacks(asgUpdateReq)
-      Mockito.doReturn(growUpdateResult).when(mockedClient).describeStacks(growUpdateReq)
-      Mockito.doReturn(growNewUpdateResult).when(mockedClient).describeStacks(growNewUpdateReq)
+      Mockito.doReturn(asgSuccessResult, Nil: _*).doReturn(idSuccessResult, Nil: _*).doReturn(growIdSuccessResult, Nil: _*).when(mockedClient).describeStacks(successReq)
+      Mockito.doReturn(deleteStackIdResult, Nil: _*).when(mockedClient).describeStacks(deleteReq)
+      Mockito.doReturn(asgUpdateResult, Nil: _*).when(mockedClient).describeStacks(asgUpdateReq)
+      Mockito.doReturn(growUpdateResult, Nil: _*).when(mockedClient).describeStacks(growUpdateReq)
+      Mockito.doReturn(growNewUpdateResult, Nil: _*).when(mockedClient).describeStacks(growNewUpdateReq)
 
 
       val props = Props(new StackInfo(null) {
@@ -438,11 +454,11 @@ object WorkflowManagerSystemTest {
       val growReq        = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-1-asg07907236").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
       val growNewASGReq  = new SuspendProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-2-asg07907237").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).suspendProcesses(org.mockito.Matchers.anyObject())
-      Mockito.doNothing().when(mockedClient).suspendProcesses(successReq)
-      Mockito.doNothing().when(mockedClient).suspendProcesses(updateSuccessReq)
-      Mockito.doNothing().when(mockedClient).suspendProcesses(growReq)
-      Mockito.doNothing().when(mockedClient).suspendProcesses(growNewASGReq)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).suspendProcesses(ArgumentMatchers.any())
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).suspendProcesses(successReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).suspendProcesses(updateSuccessReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).suspendProcesses(growReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).suspendProcesses(growNewASGReq)
 
       val props = Props(new FreezeASG(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -470,13 +486,13 @@ object WorkflowManagerSystemTest {
       val growDesiredCapSetRequest     = new SetDesiredCapacityRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-2-asg07907237").withDesiredCapacity(4)
 
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).setDesiredCapacity(org.mockito.Matchers.anyObject())
-      Mockito.doReturn(describeASGResult).when(mockedClient).describeAutoScalingGroups(describeASGReq)
-      Mockito.doReturn(describeNewASGResult).when(mockedClient).describeAutoScalingGroups(describeNewASGReq)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).setDesiredCapacity(ArgumentMatchers.any())
+      Mockito.doReturn(describeASGResult, Nil: _*).when(mockedClient).describeAutoScalingGroups(describeASGReq)
+      Mockito.doReturn(describeNewASGResult, Nil: _*).when(mockedClient).describeAutoScalingGroups(describeNewASGReq)
 
-      Mockito.doReturn(growDescribeASGResult).when(mockedClient).describeAutoScalingGroups(growASGReq)
-      Mockito.doReturn(growDescribeNewASGResult).when(mockedClient).describeAutoScalingGroups(growDescribeNewASGReq)
-      Mockito.doNothing().when(mockedClient).setDesiredCapacity(growDesiredCapSetRequest)
+      Mockito.doReturn(growDescribeASGResult, Nil: _*).when(mockedClient).describeAutoScalingGroups(growASGReq)
+      Mockito.doReturn(growDescribeNewASGResult, Nil: _*).when(mockedClient).describeAutoScalingGroups(growDescribeNewASGReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).setDesiredCapacity(growDesiredCapSetRequest)
 
       val props = Props(new ASGSize(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -553,9 +569,9 @@ object WorkflowManagerSystemTest {
       val stackPendingResp   = new DescribeStacksResult().withStacks(stackPending)
       val stackCompleteResp  = new DescribeStacksResult().withStacks(stackComplete)
 
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(deleteCompleteReq)
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(growDeleteComplete)
-      Mockito.doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackPendingResp).doReturn(stackCompleteResp).when(mockedClient).describeStacks(deleteCompleteReq2)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(deleteCompleteReq)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(growDeleteComplete)
+      Mockito.doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackPendingResp, Nil: _*).doReturn(stackCompleteResp, Nil: _*).when(mockedClient).describeStacks(deleteCompleteReq2)
 
       val props = Props(new StackDeleteCompleteMonitor(null, "some-stack-id", "chadash-newstack-somename-v1-0") {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -587,9 +603,9 @@ object WorkflowManagerSystemTest {
       val successReq   = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-somename-sv20-av1-1-asg07907234")
       val growReq      = new ResumeProcessesRequest().withAutoScalingGroupName("chadash-updatestack-growstack-v1-2-asg07907237")
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).resumeProcesses(org.mockito.Matchers.anyObject())
-      Mockito.doNothing().when(mockedClient).resumeProcesses(successReq)
-      Mockito.doNothing().when(mockedClient).resumeProcesses(growReq)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).resumeProcesses(ArgumentMatchers.any())
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).resumeProcesses(successReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).resumeProcesses(growReq)
 
       val props = Props(new UnfreezeASG(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -604,10 +620,10 @@ object WorkflowManagerSystemTest {
       val growReq        = new DeleteStackRequest().withStackName("chadash-updatestack-growstack-v1-1")
       val deleteStackReq = new DeleteStackRequest().withStackName("chadash-updatestack-somename-v1-2")
 
-      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(org.mockito.Matchers.anyObject())
-      Mockito.doNothing().when(mockedClient).deleteStack(successReq)
-      Mockito.doNothing().when(mockedClient).deleteStack(growReq)
-      Mockito.doNothing().when(mockedClient).deleteStack(deleteStackReq)
+      Mockito.doThrow(new IllegalArgumentException).when(mockedClient).deleteStack(ArgumentMatchers.any())
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).deleteStack(successReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).deleteStack(growReq)
+      Mockito.doReturn(null, Nil: _*).when(mockedClient).deleteStack(deleteStackReq)
 
       val props = Props(new DeleteStack(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds
@@ -622,7 +638,7 @@ object WorkflowManagerSystemTest {
       val stackSummaries = new StackSummary().withStackName("chadash-existingstack-somename-v1-0")
       val response = new ListStacksResult().withStackSummaries(stackSummaries)
 
-      Mockito.doReturn(response).when(mockedClient).listStacks(existingReq)
+      Mockito.doReturn(response, Nil: _*).when(mockedClient).listStacks(existingReq)
 
       val props = Props(new actors.workflow.tasks.StackList(null) {
         override def pauseTime(): FiniteDuration = 5.milliseconds

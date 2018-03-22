@@ -9,16 +9,15 @@ import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancing
 import com.amazonaws.services.elasticloadbalancing.model.{DescribeInstanceHealthRequest, DescribeInstanceHealthResult, Instance, InstanceState}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
 import org.mockito.Mockito
-import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
 
 import scala.concurrent.duration._
 
 class ELBHealthInstanceCheckerSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig))
-                                           with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll {
+                                           with FlatSpecLike with Matchers with BeforeAndAfterAll {
 
-  val mockedClient             = mock[AmazonElasticLoadBalancing]
+  val mockedClient             = Mockito.mock(classOf[AmazonElasticLoadBalancing])
   val instance                 = new Instance("instance-1")
   val instancesNotAllHealthy   = Seq(instance, new Instance("instance-2"), new Instance("instance-3"))
   val instanceStates           = new InstanceState().withState("InService")

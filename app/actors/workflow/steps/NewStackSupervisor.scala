@@ -28,13 +28,13 @@ class NewStackSupervisor(credentials: AWSCredentialsProvider,
     case Event(msg: NewStackFirstLaunchCommand, Uninitialized) =>
       val stackCreator = actorFactory(StackCreator, context, "stackLauncher", credentials)
       context.watch(stackCreator)
-      stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent)
+      stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent, msg.tags)
       goto(AwaitingStackCreatedResponse) using FirstTimeStack(msg.newStackName)
 
     case Event(msg: NewStackUpgradeLaunchCommand, Uninitialized) =>
       val stackCreator = actorFactory(StackCreator, context, "stackLauncher", credentials)
       context.watch(stackCreator)
-      stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent)
+      stackCreator ! StackCreateCommand(msg.newStackName, msg.imageId, msg.version, msg.stackContent, msg.tags)
       goto(AwaitingStackCreatedResponse) using UpgradeOldStackData(msg.oldStackASG, msg.oldStackName, msg.newStackName)
   }
 
@@ -176,8 +176,8 @@ object NewStackSupervisor extends PropFactory {
   //Interaction Messages
   sealed trait NewStackMessage
   case class NewStackFirstLaunchCommand(newStackName: String, imageId: String, version: Version,
-                                        stackContent: JsValue) extends NewStackMessage
-  case class NewStackUpgradeLaunchCommand(newStackName: String, imageId: String, version: Version, stackContent: JsValue,
+                                        stackContent: JsValue, tags: Option[Seq[Tag]]) extends NewStackMessage
+  case class NewStackUpgradeLaunchCommand(newStackName: String, imageId: String, version: Version, stackContent: JsValue, tags: Option[Seq[Tag]],
                                           oldStackName: String, oldStackASG: String) extends NewStackMessage
   case class FirstStackLaunchCompleted(newStackName: String) extends NewStackMessage
   case class StackUpgradeLaunchCompleted(newAsgName: String) extends NewStackMessage

@@ -6,9 +6,9 @@ import akka.actor._
 import akka.testkit.{TestKit, TestProbe}
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.autoscaling.AmazonAutoScaling
-import com.amazonaws.services.autoscaling.model.SuspendProcessesRequest
+import com.amazonaws.services.autoscaling.model.{SuspendProcessesRequest, SuspendProcessesResult}
 import com.amazonaws.{AmazonClientException, AmazonServiceException}
-import org.mockito.Mockito
+import org.mockito.{ArgumentMatchers, Mockito}
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import utils.{ActorFactory, PropFactory, TestConfiguration}
@@ -17,19 +17,18 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 class FreezeASGSpec extends TestKit(ActorSystem("TestKit", TestConfiguration.testConfig)) with FlatSpecLike
-                            with Matchers
-                            with MockitoSugar with BeforeAndAfterAll {
+                            with Matchers with BeforeAndAfterAll {
 
-  val mockedClient = mock[AmazonAutoScaling]
+  val mockedClient = Mockito.mock(classOf[AmazonAutoScaling])
   val successReq   = new SuspendProcessesRequest().withAutoScalingGroupName("freeze-success").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
   val reqFail      = new SuspendProcessesRequest().withAutoScalingGroupName("fail").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
   val reqClientExc = new SuspendProcessesRequest().withAutoScalingGroupName("client-exception").withScalingProcesses(Seq("AlarmNotification", "ScheduledActions").asJava)
 
   //If we don't check Mock data response, we must have throw an exception if we didn't match the request.
-  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).suspendProcesses(org.mockito.Matchers.anyObject())
-  Mockito.doNothing().when(mockedClient).suspendProcesses(successReq)
+  Mockito.doThrow(new IllegalArgumentException).when(mockedClient).suspendProcesses(ArgumentMatchers.any())
+  Mockito.doReturn(new SuspendProcessesResult(), Nil: _*).when(mockedClient).suspendProcesses(successReq)
   Mockito.doThrow(new AmazonServiceException("failed")).when(mockedClient).suspendProcesses(reqFail)
-  Mockito.doThrow(new AmazonClientException("connection problems")).doNothing().when(mockedClient).suspendProcesses(reqClientExc)
+  Mockito.doThrow(new AmazonClientException("connection problems")).doReturn(new SuspendProcessesResult(), Nil: _*).when(mockedClient).suspendProcesses(reqClientExc)
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)
